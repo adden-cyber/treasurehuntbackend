@@ -1,3 +1,23 @@
+/**
+ * server.js
+ *
+ * Ready-to-commit patch: environment-driven allowed origins, trust proxy,
+ * health endpoint, and process.env.PORT listen.
+ *
+ * - Reads FRONTEND_ORIGINS / FRONTEND_URL / VERCEL_URL from env to build allowedOrigins.
+ * - Keeps sensible local defaults for development.
+ * - Uses app.set('trust proxy', true) for reverse proxies.
+ * - Adds /api/health.
+ * - Uses process.env.PORT for listen and prints helpful startup info.
+ *
+ * Add these env vars in Render (or your host):
+ * - MONGODB_URI
+ * - JWT_SECRET
+ * - FRONTEND_URL (e.g. https://your-frontend.vercel.app) or FRONTEND_ORIGINS (comma-separated)
+ *
+ * The rest of your original routes are preserved.
+ */
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -7,8 +27,8 @@ const User = require('./models/User');
 require('dotenv').config();
 const GameSession = require('./models/GameSessions');
 const Feedback = require('./models/Feedback');
+const jwt = require('jsonwebtoken'); // JWT lib
 
-// Helper: get latest GMT+8 midnight
 // Helper: get most recent GMT+8 midnight (as a UTC Date object)
 function getCreditResetDate() {
   // now in ms
@@ -38,34 +58,52 @@ async function maybeResetCredits(user) {
 
 const gameConfigPath = path.join(__dirname, 'gameConfig.js');
 const app = express();
-const allowedOrigins = [
-  'http://127.0.0.1:8080',
-  'http://localhost:8080',
-  'http://192.168.0.105:8080',
-  'http://localhost:3001',
-  'http://192.168.0.114:8080',
-  'https://manateetreasurehunt.vercel.app'
-];
 
-// Use centralized JWT secret var
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret';
-if (!process.env.JWT_SECRET) {
-  console.warn('WARNING: Using default JWT secret. Set process.env.JWT_SECRET in production for security.');
+// Trust reverse proxies (Vercel, Render). This ensures req.ip and secure cookies behave correctly.
+app.set('trust proxy', true);
+
+// Build allowedOrigins from environment (FRONTEND_ORIGINS CSV or FRONTEND_URL or VERCEL_URL) with sensible defaults.
+const envOrigins = [];
+if (process.env.FRONTEND_ORIGINS) {
+  process.env.FRONTEND_ORIGINS.split(',').forEach(s => {
+    const t = s && s.trim();
+    if (t) envOrigins.push(t);
+  });
+}
+if (process.env.FRONTEND_URL) envOrigins.push(process.env.FRONTEND_URL.trim());
+if (process.env.VERCEL_URL) {
+  // Vercel sets VERCEL_URL without protocol (e.g. project.vercel.app) — prefer https
+  const v = process.env.VERCEL_URL.startsWith('http') ? process.env.VERCEL_URL : `https://${process.env.VERCEL_URL}`;
+  envOrigins.push(v);
 }
 
-// --- Improved CORS Setup (replace your existing CORS block with this) ---
+// default allowed origins (useful for local dev)
+const defaultAllowed = [
+  'http://127.0.0.1:8080',
+  'http://localhost:8080',
+  'http://localhost:3001',
+  'http://192.168.0.105:8080',
+  'http://192.168.0.114:8080',
+  'https://manateetreasurehunt.vercel.app' // keep as helpful default, safe to include
+];
+
+// Final allowed origins list (env first, then defaults)
+const allowedOrigins = Array.from(new Set([...(envOrigins || []), ...defaultAllowed]));
+
+// Helper to normalize origin for matching
 const normalizeOrigin = (origin) => {
   if (!origin) return origin;
-  // Convert IPv6 localhost format to hostname so matching works:
-  // e.g. "http://[::1]:3001" -> "http://localhost:3001"
   try {
     const u = new URL(origin);
     let hostname = u.hostname;
     if (hostname === '::1') hostname = 'localhost';
-    // keep port if present
     return `${u.protocol}//${hostname}${u.port ? ':' + u.port : ''}`;
   } catch (err) {
-    return origin; // fallback
+    // origin might be "project.vercel.app" — try to normalize simple host (no protocol)
+    if (!origin.includes('://') && !origin.startsWith('http')) {
+      return `https://${origin}`;
+    }
+    return origin;
   }
 };
 
@@ -77,6 +115,7 @@ app.use((req, res, next) => {
 
 app.use(cors({
   origin: function(origin, callback) {
+    // Allow server-to-server requests that have no origin header (e.g., Vercel server-side proxy, curl)
     if (!origin) return callback(null, true);
     const normalized = normalizeOrigin(origin);
     const normalizedAllowed = allowedOrigins.map(o => normalizeOrigin(o));
@@ -85,13 +124,13 @@ app.use(cors({
     return callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
-   allowedHeaders: [
+  allowedHeaders: [
     'Content-Type',
     'Authorization',
     'Accept',
     'Origin',
-    'X-Dry-Run',        // <-- add this
-    'X-Requested-With'  // optional common header
+    'X-Dry-Run',        // <-- allow the dry-run header
+    'X-Requested-With'
   ],
   methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
 }));
@@ -109,15 +148,21 @@ app.use(function (err, req, res, next) {
   console.error('Express error:', err);
   next(err);
 });
-// --- End improved CORS ---
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-const jwt = require('jsonwebtoken'); // If you want JWT, or use sessions/cookies
+// Use centralized JWT secret var
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret';
+if (!process.env.JWT_SECRET) {
+  console.warn('WARNING: Using default JWT secret. Set process.env.JWT_SECRET in production for security.');
+}
 
+// --- auth helpers ---
 function authMiddleware(req, res, next) {
   // Get token from Authorization header (Bearer ...)
-  const token = req.headers.authorization?.split(' ')[1];
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.split(' ')[1];
   if (!token) return res.status(401).json({ error: "Unauthorized" });
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
@@ -140,8 +185,6 @@ app.get('/dashboard', authMiddleware, adminOnly, (req, res) => {
 });
 
 // Simple in-memory rate limiter for bootstrap admin creation to reduce abuse.
-// This only protects the "no-admins yet" path and is intentionally lightweight.
-// For production consider using a robust rate limiter (redis-backed, express-rate-limit, etc.).
 const bootstrapAttempts = new Map(); // key: ip, value: { count, firstTs }
 
 function checkBootstrapRateLimit(ip, maxAttempts = 10, windowMs = 60 * 60 * 1000) {
@@ -163,6 +206,11 @@ function checkBootstrapRateLimit(ip, maxAttempts = 10, windowMs = 60 * 60 * 1000
   bootstrapAttempts.set(ip, rec);
   return { allowed: true, remaining: maxAttempts - rec.count };
 }
+
+// Health endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true, uptime: process.uptime(), env: process.env.NODE_ENV || 'development' });
+});
 
 // Replace the /api/login handler in server.js with this corrected version:
 app.post('/api/login', async (req, res) => {
@@ -783,7 +831,6 @@ app.get('/api/register-allowed', async (req, res) => {
   res.json({ allowed: adminCount === 0 });
 });
 
-
 app.post('/api/reset-password', async (req, res) => {
   const { email, newPassword } = req.body;
   if (!email || !newPassword) {
@@ -841,7 +888,6 @@ app.get('/api/leaderboard',authMiddleware, async (req, res) => {
   res.json(leaderboard);
 });
 
-
 // User submits feedback
 app.post('/api/feedback', authMiddleware, async (req, res) => {
   const { rating, text } = req.body;
@@ -883,4 +929,18 @@ app.delete('/api/feedbacks/:id', authMiddleware, adminOnly, async (req, res) => 
   }
 });
 
-app.listen(3001, () => console.log('Backend listening on http://192.168.0.114:3001'));
+// Start server using process.env.PORT for Render compatibility
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () => {
+  console.log(`Backend listening on port ${PORT}`);
+  if (process.env.RENDER_EXTERNAL_HOSTNAME) {
+    console.log(`Render external hostname: ${process.env.RENDER_EXTERNAL_HOSTNAME}`);
+  }
+  if (process.env.FRONTEND_URL) {
+    console.log(`Configured FRONTEND_URL: ${process.env.FRONTEND_URL}`);
+  } else if (process.env.FRONTEND_ORIGINS) {
+    console.log(`Configured FRONTEND_ORIGINS: ${process.env.FRONTEND_ORIGINS}`);
+  } else {
+    console.log('Allowed origins (computed):', allowedOrigins);
+  }
+});
