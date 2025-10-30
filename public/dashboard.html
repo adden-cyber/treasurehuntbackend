@@ -1,0 +1,1474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Treasure Hunt Game Dashboard (Admin)</title>
+    <link rel="stylesheet" href="/styles.css">
+    <style>
+
+        #feedbacks-section, #feedbacks-section * {
+    color: #111 !important;
+}
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f8fbff;
+        }
+        #admin-auth, #admin-create {
+            max-width: 340px;
+            margin: 60px auto;
+            background: #f7fcff;
+            padding: 32px 24px;
+            border-radius: 12px;
+            display: none;
+        }
+        #admin-auth h2, #admin-create h2 { text-align:center; color: #0366d6; }
+        .auth-field { margin-bottom: 18px; }
+        .auth-field label { font-weight: 500; color: #234; display:block; margin-bottom:4px; }
+        .auth-field input { width: 100%; padding: 8px; border: 1.2px solid #b3cbe1; border-radius: 6px; }
+        .auth-btn { background:#0099cc; color:white; border:none; border-radius:6px; padding:10px 18px; cursor:pointer; font-weight:600; width:100%; margin-bottom:10px; }
+        .auth-btn:hover { background:#0066cc; }
+        .auth-msg { color: #c00; text-align:center; margin-bottom: 10px; }
+        .container {
+            max-width: 1000px;
+            margin: 10px auto 0 auto;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            display: none;
+        }
+        h1, h2 {
+            color: #0066cc;
+            text-align: center;
+        }
+        #logout-btn {
+            background:#444;color:white;padding:7px 14px;border:none;border-radius:4px;cursor:pointer;float:right;margin-top:-55px;
+        }
+        #create-admin-btn {
+            background:#23a142;color:white;padding:10px 18px;border:none;border-radius:4px;cursor:pointer;margin-bottom:15px;float:right;
+        }
+        
+        .filter-section {
+    width: 100%;
+    box-sizing: border-box;
+    margin-left: 0;
+    margin-right: 0;
+    /* Remove any max-width or horizontal margin */
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    align-items: center;
+    background: #f5f9ff;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+        .filter-group {
+    flex: 1 1 0;
+    min-width: 180px;
+    display: flex;
+    flex-direction: column;
+    padding: 0 6px;
+    box-sizing: border-box;
+        }
+        .filter-label {
+            font-size: 0.9em;
+            margin-bottom: 5px;
+            color: #555;
+        }
+        .filter-input {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .filter-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+    width: 100%;
+}
+        .filter-button {
+    background: #0066cc;
+    color: white;
+    border: none;
+    padding: 14px 0;
+    border-radius: 4px;
+    cursor: pointer;
+    flex: 1 1 0;
+    font-weight: bold;
+    font-size: 1.15em;
+    letter-spacing: 1px;
+}
+        .filter-button:hover {
+    background: #0055aa;
+        }
+        @media (max-width: 900px) {
+    .filter-section { flex-direction: column; gap: 10px; }
+    .filter-group { width: 100%; min-width: unset; padding: 0; }
+    .filter-buttons { flex-direction: column; }
+}
+        .summary-section {
+            background: #e6f2ff;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            
+        }
+        .summary-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .summary-stat {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .summary-label {
+            font-size: 1em;
+            color: #555;
+        }
+        .summary-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #0066cc;
+        }
+        .session {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f5f9ff;
+            border-radius: 5px;
+            position: relative;
+        }
+        .win-badge {
+            background: #4CAF50;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-weight: bold;
+            margin-right: 10px;
+            display: inline-block;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .stat {
+            background: white;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .stat-label {
+            font-size: 0.9em;
+            color: #666;
+        }
+        .stat-value {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #0066cc;
+        }
+        .delete-btn {
+            background: #ff4d4d;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+        .delete-btn:hover {
+            background: #e60000;
+        }
+        .clear-all-btn {
+            background: #ff4d4d;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        .session-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #23272f; /* dark background */
+    color: #fff !important; /* white text */
+    padding: 14px 20px;
+    border-radius: 7px;
+    margin-bottom: 16px;
+}
+.session-header h2 {
+    color: #fff !important;
+    margin: 0;
+    font-size: 1.3em;
+}
+.session-header .filter-button {
+    background: #2561d1;
+    color: #fff;
+    border: none;
+    font-weight: bold;
+    font-size: 1.15em;
+    border-radius: 6px;
+    margin: 0 4px;
+    padding: 8px 18px;
+}
+.session-header .filter-button[disabled] {
+    background: #444b5e;
+    color: #bbb;
+    cursor: not-allowed;
+}
+.session-header .clear-all-btn {
+    background: #ff4d4d;
+    color: #fff;
+    font-weight: bold;
+    margin-left: 20px;
+    border-radius: 6px;
+    border: none;
+    padding: 8px 18px;
+}
+.session-header span {
+    color: #fff !important;
+    font-weight: bold;
+    font-size: 1.16em;
+    margin: 0 8px;
+    letter-spacing: 1px;
+}
+        .users-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 18px;
+            margin-bottom: 30px;
+            padding-top: 8px;
+        }
+        .user-card {
+            background: #fafdff;
+            border-radius: 10px;
+            padding: 28px 20px 16px 16px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            border: 1px solid #e3eefc;
+        }
+        .user-card:hover {
+            border-color: #b3dafe;
+        }
+        .user-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        .user-email {
+            font-weight: bold;
+            font-size: 1.1em;
+            color: #0066cc;
+            word-break: break-all;
+        }
+        .user-date {
+            font-size: 0.95em;
+            color: #555;
+            margin-top: 8px;
+        }
+        .user-stats {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 10px;
+            margin-top: 5px;
+            flex-wrap: wrap;
+        }
+        .user-stat {
+            background: #eef7ff;
+            border-radius: 6px;
+            padding: 7px 11px;
+            font-size: 1em;
+            color: #185c99;
+            font-weight: 500;
+            margin-bottom: 7px;
+            flex: 1;
+            min-width: 90px;
+            text-align: center;
+        }
+        .user-card .delete-btn {
+            background: #ff4d4d;
+            color: white;
+            border: none;
+            padding: 7px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            position: absolute;
+            top: 16px;
+            right: 18px;
+            transition: background 0.17s;
+            margin-left: 0;
+            z-index: 2;
+        }
+        .user-card .delete-btn:hover {
+            background: #e60000;
+        }
+        @media (max-width: 600px) {
+            .users-list { grid-template-columns: 1fr; }
+            .user-stats { flex-direction: column; gap: 6px; }
+        }
+        /* Game Config Section */
+        #game-config-section {
+            max-width: 600px;
+            margin: 32px auto;
+            background: #f6faff;
+            border-radius: 12px;
+            padding: 32px 32px 28px 32px;
+            font-family: Arial,sans-serif;
+        }
+        #game-config-section h2 {
+            color: #0366d6;
+            margin-top: 0;
+            margin-bottom: 24px;
+            text-align: center;
+            font-size: 2rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+        #game-config-form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .config-row {
+            display: grid;
+            grid-template-columns: 160px 1fr;
+            align-items: center;
+            gap: 12px;
+        }
+        .config-row label {
+            font-weight: 500;
+            color: #234;
+            font-size: 1rem;
+            text-align: right;
+        }
+        #mazePattern {
+            width: 100%;
+            min-height: 220px;
+            font-family: "Fira Mono", "Consolas", monospace;
+            font-size: 1rem;
+            padding: 10px;
+            border: 1.5px solid #bccbe1;
+            border-radius: 6px;
+            resize: vertical;
+            background: #fff;
+            box-sizing: border-box;
+        }
+        .config-input {
+            width: 100%;
+            font-size: 1rem;
+            padding: 7px 8px;
+            border: 1.2px solid #bccbe1;
+            border-radius: 6px;
+            background: #fff;
+            box-sizing: border-box;
+            margin-top: 0;
+            margin-bottom: 0;
+            transition: border 0.2s;
+        }
+        .config-input:focus, #mazePattern:focus {
+            outline: none;
+            border-color: #0366d6;
+            background: #f0f6ff;
+        }
+        .config-buttons {
+            display: flex;
+            justify-content: flex-start;
+            gap: 14px;
+            margin-top: 8px;
+        }
+        #config-msg {
+            margin-left: 18px;
+            color: #007700;
+            font-weight: bold;
+            line-height: 36px;
+        }
+        .save-btn {
+            background: #23a142;
+            color: #fff;
+            font-weight: 600;
+            border: none;
+            border-radius: 6px;
+            padding: 10px 24px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.16s;
+        }
+        .save-btn:hover {
+            background: #1c8134;
+        }
+        .cancel-btn {
+            background: #fff;
+            color: #444;
+            border: 1.2px solid #bbb;
+            border-radius: 6px;
+            padding: 10px 24px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: border 0.18s, background 0.18s;
+        }
+        .cancel-btn:hover {
+            border-color: #888;
+            background: #f5f5f5;
+        }
+        @media (max-width: 700px) {
+            #game-config-section { padding: 13px 4vw 18px 4vw; }
+            .config-row { grid-template-columns: 1fr; text-align: left;}
+            .config-row label { text-align: left; }
+        }
+        html, body {
+            overflow-y: auto !important;
+            overflow-x: visible !important;
+            position: static !important;
+            height: auto !important;
+            min-height: 100% !important;
+            top: auto !important;
+            scroll-snap-type: none !important;
+        }
+        body
+        { overscroll-behavior: auto !important; }
+
+        /* ---- Collapsible section styles ---- */
+        .section-heading {
+          display:flex;
+          align-items:center;
+          justify-content:space-between;
+          gap:12px;
+          margin: 12px 0 8px 0;
+        }
+        .toggle-btn {
+          background: #007acc;
+          color: #fff;
+          border: none;
+          border-radius: 6px;
+          padding: 6px 10px;
+          font-weight: bold;
+          cursor: pointer;
+          min-width:44px;
+          height:36px;
+        }
+        .toggle-btn[aria-expanded="false"] {
+          background: #444b5e;
+        }
+        .collapsible-section {
+          margin-bottom: 18px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Treasure Hunt Game Dashboard</h1>
+        <button id="show-config-btn">Edit Game Config</button>
+        <button id="show-feedbacks-btn">Feedbacks and Ratings</button>
+        <button id="logout-btn">Logout</button><button id="create-admin-btn">Create Admin</button>
+        <div id="game-config-section" style="display:none;">
+            <h2>Edit Game Config</h2>
+            <form id="game-config-form">
+                <div class="config-row" style="grid-template-columns: 1fr;">
+                    <label for="configDifficulty" style="text-align:left;">Difficulty:</label>
+                    <select id="configDifficulty" class="config-input" style="width:180px;max-width:180px;">
+                        <option value="easy">Easy</option>
+                        <option value="normal">Normal</option>
+                        <option value="hard">Hard</option>
+                    </select>
+                </div>
+                <div class="config-row" style="grid-template-columns: 1fr;">
+                    <label for="mazePattern" style="text-align:left;">Maze Pattern (one row per line, 1=wall, 0=open, X=manatee spawn, M=mermaid spawn):</label>
+                </div>
+                <div class="config-row" style="grid-template-columns: 1fr;">
+                    <textarea id="mazePattern"></textarea>
+                </div>
+                <div class="config-row">
+                    <label for="totalTreasures">Total Treasures:</label>
+                    <input type="number" id="totalTreasures" min="1" class="config-input">
+                </div>
+                <div class="config-row">
+                    <label for="totalSeaweeds">Total Seaweeds:</label>
+                    <input type="number" id="totalSeaweeds" min="0" class="config-input">
+                </div>
+                <div class="config-row">
+                    <label for="totalBubbles">Total Bubbles:</label>
+                    <input type="number" id="totalBubbles" min="0" class="config-input">
+                </div>
+                <div class="config-row">
+                    <label for="totalMines">Total Mines:</label>
+                    <input type="number" id="totalMines" min="0" class="config-input">
+                </div>
+                <div class="config-row">
+                    <label for="gameTimeSeconds">Game Time (seconds):</label>
+                    <input type="number" id="gameTimeSeconds" min="10" class="config-input">
+                </div>
+                <div class="config-row">
+                    <label for="totalFakeChests">Total Fake Chests:</label>
+                    <input type="number" id="totalFakeChests" min="0" class="config-input">
+                </div>
+                <div class="config-buttons">
+                    <button type="submit" class="save-btn">Save Config</button>
+                    <button type="button" id="cancel-config" class="cancel-btn">Cancel</button>
+                    <button type="button" id="return-dashboard" class="cancel-btn">Return to Dashboard</button>
+                    <span id="config-msg"></span>
+                </div>
+            </form>
+        </div>
+        <div id="dashboard-main">
+        
+       
+<form id="create-admin-form" style="display:none; max-width:340px; margin:20px auto;">
+  <h2>Create New Admin</h2>
+  <div class="auth-field">
+    <label for="new-admin-email">Email</label>
+    <input id="new-admin-email" type="email" required>
+  </div>
+  <div class="auth-field">
+    <label for="new-admin-password">Password</label>
+    <input id="new-admin-password" type="password" required>
+  </div>
+  <button type="submit" class="auth-btn">Create Admin</button>
+  <div id="create-admin-msg" class="auth-msg"></div>
+</form>
+        
+        <div class="summary-section">
+            <h2>Summary Stats</h2>
+            <div class="summary-stats">
+                <div class="summary-stat">
+                    <div class="summary-label">Total Sessions</div>
+                    <div class="summary-value" id="total-sessions">0</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="summary-label">Total Treasures</div>
+                    <div class="summary-value" id="total-treasures">0</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="summary-label">Total Bubbles</div>
+                    <div class="summary-value" id="total-bubbles">0</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="summary-label">Total Deaths</div>
+                    <div class="summary-value" id="total-deaths">0</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="summary-label">Average Time</div>
+                    <div class="summary-value" id="avg-time">0 sec</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="summary-label">Win Rate</div>
+                    <div class="summary-value" id="win-rate">0%</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Collapsible Users Section -->
+        <div class="collapsible-section" id="users-section">
+          <div class="section-heading" style="align-items:center;">
+            <h2 style="margin:0;">Registered Users</h2>
+            <button id="toggle-users" class="toggle-btn" aria-expanded="true" title="Collapse/Expand">−</button>
+          </div>
+          <div id="users-list" class="users-list"></div>
+        </div>
+
+        <!-- Collapsible Admins Section -->
+        <div class="collapsible-section" id="admins-section">
+          <div class="section-heading" style="align-items:center;">
+            <h2 style="margin:0;">Admins</h2>
+            <button id="toggle-admins" class="toggle-btn" aria-expanded="true" title="Collapse/Expand">−</button>
+          </div>
+          <div id="admins-list" class="users-list"></div>
+        </div>
+
+        <div id="leaderboard-container"></div>
+        <div class="filter-section">
+            <div class="filter-group">
+            <label class="filter-label" for="filter-player-name">Player Name</label>
+            <input class="filter-input" type="text" id="filter-player-name" placeholder="Enter player email">
+            </div>
+            <div class="filter-group">
+                <label class="filter-label" for="start-date">Start Date</label>
+                <input class="filter-input" type="date" id="start-date">
+            </div>
+            <div class="filter-group">
+                <label class="filter-label" for="end-date">End Date</label>
+                <input class="filter-input" type="date" id="end-date">
+            </div>
+            <div class="filter-group">
+                <label class="filter-label" for="filter-status">Status</label>
+                <select id="filter-status" class="filter-input">
+                    <option value="all">All</option>
+                    <option value="win">Win</option>
+                    <option value="loss">Loss</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label class="filter-label" for="filter-device">Device</label>
+                <select id="filter-device" class="filter-input">
+                    <option value="all">All</option>
+                    <option value="desktop">Desktop</option>
+                    <option value="mobile">Mobile</option>
+                </select>
+            </div>
+            <div class="filter-group">
+  <label class="filter-label" for="filter-difficulty">Difficulty</label>
+  <select id="filter-difficulty" class="filter-input">
+    <option value="all">All</option>
+    <option value="easy">Easy</option>
+    <option value="normal">Normal</option>
+    <option value="hard">Hard</option>
+  </select>
+</div>
+            <div class="filter-buttons">
+                <button id="apply-filter" class="filter-button">Apply Filters</button>
+                <button id="reset-filter" class="filter-button">Reset</button>
+            </div>
+        </div>
+        <div id="sessions"></div>
+       
+       
+    </div>
+     <div id="feedbacks-section" style="display:none;">
+  <h2>Feedbacks and Ratings</h2>
+  <div id="feedbacks-list"></div>
+  <button id="feedbacks-return-dashboard" class="cancel-btn">Return to Dashboard</button>
+    </div>
+    <script>
+        let token = localStorage.getItem('token');
+
+async function initDashboardAuth() {
+  token = localStorage.getItem('token');
+  if (token) return;
+
+  try {
+    const res = await fetch('/api/register-allowed', { method: 'GET' });
+    if (!res.ok) {
+      console.warn('register-allowed check failed:', res.status);
+      window.location.href = '/login.html';
+      return;
+    }
+    const body = await res.json();
+    if (body && body.allowed) {
+      console.info('No admins yet: dashboard will allow bootstrap creation of the first admin.');
+      window.__dashboard_register_allowed = true;
+      return;
+    } else {
+      window.location.href = '/login.html';
+      return;
+    }
+  } catch (err) {
+    console.error('Error checking /api/register-allowed:', err);
+    window.location.href = '/login.html';
+    return;
+  }
+}
+
+function authFetch(url, options = {}) {
+  const storedToken = localStorage.getItem('token');
+  const headers = Object.assign({}, options.headers || {});
+  if (storedToken) {
+    headers['Authorization'] = 'Bearer ' + storedToken;
+  }
+  const opts = Object.assign({}, options, { headers });
+  return fetch(url, opts);
+}
+
+function getCurrentAdminId() {
+  return localStorage.getItem('adminId');
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  // Wait for the bootstrap/auth check before doing admin-only calls
+  await initDashboardAuth();
+
+  document.querySelector('.container').style.display = 'block';
+  requestAnimationFrame(() => window.scrollTo(0, 0));
+
+  // Refresh token var
+  token = localStorage.getItem('token');
+
+  // If unauthenticated and bootstrap allowed — show create-admin form only
+  if (!token && window.__dashboard_register_allowed) {
+    const createAdminFormEl = document.getElementById('create-admin-form');
+    if (createAdminFormEl) createAdminFormEl.style.display = 'block';
+  } else {
+    // Authenticated flow
+    loadUsers();
+    loadAdmins();
+    loadSessions();
+    loadLeaderboard();
+  }
+
+  // Logout
+  const logoutBtn = document.getElementById('logout-btn');
+  if (logoutBtn) {
+    logoutBtn.onclick = () => {
+      localStorage.removeItem('token');
+      window.location.href = '/login.html';
+    };
+  }
+
+  // Config events
+  const configBtn = document.getElementById('show-config-btn');
+  if (configBtn) {
+    configBtn.onclick = async () => {
+      showDashboardSection('game-config-section');
+      document.getElementById('config-msg').textContent = '';
+      selectedConfigDifficulty = document.getElementById('configDifficulty').value;
+      await loadConfigForDifficulty(selectedConfigDifficulty);
+    };
+  }
+  const configDifficultySelect = document.getElementById('configDifficulty');
+  if (configDifficultySelect) {
+    configDifficultySelect.onchange = async () => {
+      selectedConfigDifficulty = configDifficultySelect.value;
+      await loadConfigForDifficulty(selectedConfigDifficulty);
+    };
+  }
+  const cancelConfigBtn = document.getElementById('cancel-config');
+  if (cancelConfigBtn) {
+    cancelConfigBtn.onclick = () => {
+      document.getElementById('game-config-section').style.display = 'none';
+      showDashboardSection('dashboard-main');
+    };
+  }
+  const returnDashboardBtn = document.getElementById('return-dashboard');
+  if (returnDashboardBtn) {
+    returnDashboardBtn.onclick = () => {
+      document.getElementById('game-config-section').style.display = 'none';
+      showDashboardSection('dashboard-main');
+    };
+  }
+
+  if (document.getElementById('game-config-form')) {
+    document.getElementById('game-config-form').onsubmit = async (e) => {
+      e.preventDefault();
+      document.getElementById('config-msg').textContent = '';
+      const newConfig = {
+        mazePattern: document.getElementById('mazePattern').value.trim().split('\n'),
+        totalTreasures: Number(document.getElementById('totalTreasures').value),
+        totalSeaweeds: Number(document.getElementById('totalSeaweeds').value),
+        totalBubbles: Number(document.getElementById('totalBubbles').value),
+        totalMines: Number(document.getElementById('totalMines').value),
+        gameTimeSeconds: Number(document.getElementById('gameTimeSeconds').value),
+        totalFakeChests: Number(document.getElementById('totalFakeChests').value),
+      };
+
+      const res = await authFetch('/api/game-config?difficulty=' + selectedConfigDifficulty, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newConfig)
+      });
+      document.getElementById('config-msg').textContent = res.ok ? 'Saved!' : 'Save failed';
+    };
+  }
+
+  // Create Admin wiring (works for bootstrap and normal creation)
+  const createAdminBtn = document.getElementById('create-admin-btn');
+  const createAdminForm = document.getElementById('create-admin-form');
+  const createAdminMsg = document.getElementById('create-admin-msg');
+
+  if (createAdminBtn && createAdminForm) {
+    createAdminBtn.onclick = () => {
+      if (createAdminForm.style.display === 'block') {
+        createAdminForm.style.display = 'none';
+        createAdminMsg.textContent = '';
+      } else {
+        createAdminForm.style.display = 'block';
+        createAdminMsg.textContent = '';
+      }
+    };
+    createAdminForm.onsubmit = async (e) => {
+      e.preventDefault();
+      createAdminMsg.textContent = '';
+      const email = document.getElementById('new-admin-email').value.trim();
+      const password = document.getElementById('new-admin-password').value;
+      if (!email || !password) {
+        createAdminMsg.textContent = 'Please enter email and password.';
+        return;
+      }
+      try {
+        const res = await authFetch('/api/register-admin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if (res.ok && data.ok) {
+          createAdminMsg.textContent = 'Admin created! Redirecting to login...';
+          createAdminForm.reset();
+          createAdminForm.style.display = 'none';
+          setTimeout(() => { window.location.href = '/login.html'; }, 600);
+        } else {
+          createAdminMsg.textContent = data.error || 'Failed to create admin.';
+        }
+      } catch (err) {
+        createAdminMsg.textContent = 'Network error.';
+      }
+    };
+  }
+
+  function initCollapsibles() {
+  document.querySelectorAll('.collapsible-section').forEach(section => {
+    const heading = section.querySelector('.section-heading');
+    if (!heading) return;
+    const toggle = heading.querySelector('.toggle-btn');
+    if (!toggle) return;
+
+    // Find the main content node that is a direct child and NOT the heading.
+    const content = Array.from(section.children).find(ch => !ch.classList.contains('section-heading'));
+    if (!content) return;
+
+    // Ensure initial ARIA state (default to expanded)
+    if (!toggle.hasAttribute('aria-expanded')) toggle.setAttribute('aria-expanded', 'true');
+
+    // Apply initial visibility according to aria-expanded
+    const initiallyExpanded = toggle.getAttribute('aria-expanded') === 'true';
+    content.style.display = initiallyExpanded ? '' : 'none';
+    toggle.textContent = initiallyExpanded ? '−' : '+';
+
+    // Click toggles
+    toggle.addEventListener('click', (ev) => {
+      const isExpanded = toggle.getAttribute('aria-expanded') === 'true';
+      toggle.setAttribute('aria-expanded', String(!isExpanded));
+      content.style.display = isExpanded ? 'none' : '';
+      toggle.textContent = isExpanded ? '+' : '−';
+    });
+
+    // Keyboard accessibility (Enter / Space)
+    toggle.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' || ev.key === ' ') {
+        ev.preventDefault();
+        toggle.click();
+      }
+    });
+
+    // Make the toggle focusable if it isn't already
+    if (!toggle.hasAttribute('tabindex')) toggle.setAttribute('tabindex', '0');
+  });
+}
+
+  /* ---- Collapsible toggles initialization ---- */
+  setTimeout(() => initCollapsibles(), 500);
+}); // end DOMContentLoaded
+
+       
+
+        function showDashboardSection(sectionId) {
+  // Hide all major dashboard sections
+  document.getElementById('dashboard-main').style.display = 'none';
+  document.getElementById('game-config-section').style.display = 'none';
+  document.getElementById('feedbacks-section').style.display = 'none';
+  // Show the requested section
+  document.getElementById(sectionId).style.display = 'block';
+}
+
+       async function loadUsers() {
+  const res = await authFetch('/api/users');
+  if (res.status === 401) {
+    localStorage.removeItem('token');
+    window.location.href = '/login.html';
+    return;
+  }
+  if (!res.ok) return;
+  const users = await res.json();
+  const container = document.getElementById('users-list');
+  if (!container) return;
+
+  // Build compact table
+  if (!users || users.length === 0) {
+    container.innerHTML = '<div style="padding:12px;color:#666;">No registered users found.</div>';
+    return;
+  }
+
+  // Clear and create table
+  container.innerHTML = '';
+  const table = document.createElement('table');
+  table.style.width = '100%';
+  table.style.borderCollapse = 'collapse';
+  table.style.fontSize = '0.95em';
+  table.style.color = '#222';
+
+  // header
+  const thead = document.createElement('thead');
+  thead.innerHTML = `
+    <tr style="background:#f1f7ff;">
+      <th style="text-align:left;padding:8px 10px;border-bottom:1px solid #e3eefc;">Email</th>
+      <th style="padding:8px 10px;border-bottom:1px solid #e3eefc;">Plays</th>
+      <th style="padding:8px 10px;border-bottom:1px solid #e3eefc;">Deaths</th>
+      <th style="padding:8px 10px;border-bottom:1px solid #e3eefc;">Time (min)</th>
+      <th style="padding:8px 10px;border-bottom:1px solid #e3eefc;">Credits</th>
+      <th style="padding:8px 10px;border-bottom:1px solid #e3eefc;">Created</th>
+      <th style="padding:8px 10px;border-bottom:1px solid #e3eefc;"></th>
+    </tr>
+  `;
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+
+  users.filter(u => !u.isAdmin).forEach(u => {
+    const creditsDisplay = (typeof u.credits === 'number') ? String(u.credits) : '--';
+    const created = new Date(u.dateCreated || Date.now());
+    const minutes = u.totalTimePlayed ? Math.round((u.totalTimePlayed || 0) / 60) : 0;
+    const tr = document.createElement('tr');
+    tr.style.borderBottom = '1px solid #f0f4fb';
+    tr.innerHTML = `
+      <td style="padding:10px;">${u.email}</td>
+      <td style="padding:10px;text-align:center;">${u.playCount || 0}</td>
+      <td style="padding:10px;text-align:center;">${u.totalDeaths || 0}</td>
+      <td style="padding:10px;text-align:center;">${minutes}</td>
+      <td style="padding:10px;text-align:center;color:#0a75d8;font-weight:700;">${creditsDisplay}</td>
+      <td style="padding:10px;text-align:center;color:#666;">${created.toLocaleDateString()}</td>
+      <td style="padding:10px;text-align:right;">
+        <button class="delete-btn" style="padding:6px 10px;font-size:0.95em;" onclick="deleteUser('${u._id}')">Delete</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  table.appendChild(tbody);
+  container.appendChild(table);
+}
+         window.deleteUser = async function(userId) {
+            if (!confirm('Delete this user and all their data?')) return;
+    const res = await authFetch(`/api/users/${userId}`, { method: 'DELETE' });
+    if (res.status === 401) {
+        localStorage.removeItem('token');
+        window.location.href = '/login.html';
+        return;
+    }
+            loadUsers();
+        };
+
+        window.deleteAdmin = async function(adminId) {
+  if (!confirm('Are you sure you want to delete this admin account?')) return;
+  const res = await authFetch(`/api/admins/${adminId}`, { method: 'DELETE' });
+  const data = await res.json();
+  if (res.ok && data.ok) {
+    alert('Admin deleted.');
+    loadAdmins();
+  } else {
+    alert(data.error || 'Failed to delete admin.');
+  }
+};
+
+        async function loadAdmins() {
+  const res = await authFetch('/api/admins');
+  if (res.status === 401) {
+    localStorage.removeItem('token');
+    window.location.href = '/login.html';
+    return;
+  }
+  if (!res.ok) return;
+  const admins = await res.json();
+  const container = document.getElementById('admins-list');
+  if (!container) return;
+
+  if (!admins || admins.length === 0) {
+    container.innerHTML = '<div style="padding:12px;color:#666;">No admins found.</div>';
+    return;
+  }
+
+  container.innerHTML = '';
+  const table = document.createElement('table');
+  table.style.width = '100%';
+  table.style.borderCollapse = 'collapse';
+  table.style.fontSize = '0.95em';
+
+  table.innerHTML = `
+    <thead>
+      <tr style="background:#f7f9ff;">
+        <th style="text-align:left;padding:8px 10px;border-bottom:1px solid #e3eefc;">Email</th>
+        <th style="padding:8px 10px;border-bottom:1px solid #e3eefc;">Created</th>
+        <th style="padding:8px 10px;border-bottom:1px solid #e3eefc;"></th>
+      </tr>
+    </thead>
+  `;
+
+  const tbody = document.createElement('tbody');
+  admins.forEach(a => {
+    const created = new Date(a.dateCreated || Date.now());
+    const canDelete = String(a._id) !== String(getCurrentAdminId());
+    const tr = document.createElement('tr');
+    tr.style.borderBottom = '1px solid #f0f4fb';
+    tr.innerHTML = `
+      <td style="padding:10px;color:#0a66d1;font-weight:600;">${a.email}</td>
+      <td style="padding:10px;text-align:center;color:#666;">${created.toLocaleDateString()}</td>
+      <td style="padding:10px;text-align:right;">
+        ${canDelete ? `<button class="delete-btn" style="padding:6px 10px;font-size:0.95em;" onclick="deleteAdmin('${a._id}')">Delete</button>` : ''}
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  table.appendChild(tbody);
+  container.appendChild(table);
+}
+document.getElementById('show-feedbacks-btn').onclick = async () => {
+  showDashboardSection('feedbacks-section');
+  loadFeedbacks();
+};
+
+async function loadFeedbacks() {
+  const res = await authFetch('/api/feedbacks');
+  const container = document.getElementById('feedbacks-list');
+  if (!res.ok) { container.innerHTML = 'Failed to load.'; return; }
+  const feedbacks = await res.json();
+  if (!feedbacks.length) {
+    container.innerHTML = '<div>No feedbacks and rating at the moment.</div>';
+    return;
+  }
+  container.innerHTML = '';
+  feedbacks.forEach(fb => {
+    let stars = '';
+    for (let i=0; i<fb.rating; i++) stars += '★';
+    for (let i=0; i<5-fb.rating; i++) stars += '☆';
+    container.innerHTML += `
+      <div class="feedback-card" style="background:#fafdff;padding:16px;margin-bottom:16px;border-radius:8px;">
+        <div><b>${fb.email}</b> &middot; <span>${stars}</span> <span style="font-size:0.9em;color:#888;">${new Date(fb.date).toLocaleString()}</span></div>
+        <div style="margin:12px 0;">${fb.text}</div>
+        <div>
+  <textarea id="reply-${fb._id}" style="width:96%;height:48px;border-radius:4px;padding:6px;">${fb.adminReply||''}</textarea>
+  <button onclick="sendFeedbackReply('${fb._id}')" class="save-btn" style="margin-top:4px;">Send Reply</button>
+  <button onclick="deleteFeedback('${fb._id}')" class="delete-btn" style="margin-top:4px; margin-left:8px;">Delete</button>
+</div>
+        ${fb.adminReply ? `<div style="color:#186a1d;font-weight:bold;margin-top:6px;">Replied at ${new Date(fb.adminReplyDate).toLocaleString()}</div>` : ''}
+      </div>
+    `;
+  });
+  window.deleteFeedback = async function(id) {
+  if (!confirm('Delete this feedback?')) return;
+  const res = await authFetch(`/api/feedbacks/${id}`, { method: 'DELETE' });
+   if (res.status === 401) {
+      localStorage.removeItem('token');
+    window.location.href = '/login.html';
+  return;
+   }
+   if (res.ok) {
+    loadFeedbacks();
+  } else {
+    alert('Failed to delete feedback.');
+  }
+};
+}
+
+window.sendFeedbackReply = async function(id) {
+  const reply = document.getElementById('reply-'+id).value.trim();
+  if (!reply) { alert('Reply cannot be empty!'); return; }
+  const res = await authFetch(`/api/feedbacks/${id}/reply`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reply })
+  });
+  if (res.ok) {
+    alert('Reply sent!');
+    loadFeedbacks();
+  } else {
+    alert('Failed to send reply.');
+  }
+};
+
+document.getElementById('feedbacks-return-dashboard').onclick = () => {
+  document.getElementById('feedbacks-section').style.display = 'none';
+  showDashboardSection('dashboard-main');
+};
+        let allSessions = [];
+        function formatDateForInput(date) {
+            const d = new Date(date);
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+        function initializeDateFilters() {
+            const today = new Date();
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(today.getDate() - 30);
+            if (document.getElementById('start-date')) {
+                document.getElementById('start-date').value = formatDateForInput(thirtyDaysAgo);
+            }
+            if (document.getElementById('end-date')) {
+                document.getElementById('end-date').value = formatDateForInput(today);
+            }
+        }
+        function applyFilters() {
+            sessionsCurrentPage = 1;
+            const playerNameFilter = document.getElementById('filter-player-name').value.trim().toLowerCase();
+            if (!document.getElementById('start-date')) return;
+            const startDate = document.getElementById('start-date').value;
+            const endDate = document.getElementById('end-date').value;
+            const statusFilter = document.getElementById('filter-status').value;
+            const deviceFilter = document.getElementById('filter-device').value;
+            const difficultyFilter = document.getElementById('filter-difficulty').value;
+            const startDateTime = startDate ? new Date(startDate) : null;
+            const endDateTime = endDate ? new Date(endDate) : null;
+            if (endDateTime) { endDateTime.setHours(23, 59, 59, 999); }
+            const filteredSessions = allSessions.filter(session => {
+                const sessionDate = new Date(session.startTime);
+                if (startDateTime && sessionDate < startDateTime) return false;
+                if (endDateTime && sessionDate > endDateTime) return false;
+                if (statusFilter === 'win' && !session.isWin) return false;
+                if (statusFilter === 'loss' && session.isWin) return false;
+                if (deviceFilter === 'mobile' && session.deviceType !== 'mobile') return false;
+                if (deviceFilter === 'desktop' && session.deviceType !== 'desktop') return false;
+                if (difficultyFilter !== 'all' && session.difficulty !== difficultyFilter) return false;
+                if (playerNameFilter) {
+            const email = (session.user && session.user.email) ? session.user.email.toLowerCase() : '';
+            if (!email.includes(playerNameFilter)) return false;
+        }
+                return true;
+            });
+            displaySessions(filteredSessions);
+            updateSummaryStats(filteredSessions);
+        }
+        function resetFilters() {
+            initializeDateFilters();
+            document.getElementById('filter-status').value = 'all';
+            document.getElementById('filter-device').value = 'all';
+            document.getElementById('filter-player-name').value = '';
+            applyFilters();
+        }
+        function updateSummaryStats(sessions) {
+            if (!document.getElementById('total-sessions')) return;
+            const totalSessions = sessions.length;
+            let totalTreasures = 0, totalBubbles = 0, totalDeaths = 0, totalTime = 0, completedSessions = 0, winCount = 0;
+            sessions.forEach(session => {
+                totalTreasures += session.chestsCollected || 0;
+                totalBubbles += session.bubblesCollected || 0;
+                totalDeaths += session.mineDeaths || 0;
+                if (session.elapsedSeconds) {
+                    totalTime += session.elapsedSeconds;
+                    completedSessions++;
+                }
+                const maxChests = session.totalChests || 20;
+                if (session.chestsCollected >= maxChests) {
+                    session.isWin = true;
+                    winCount++;
+                } else if (session.isWin) {
+                    winCount++;
+                }
+            });
+            document.getElementById('total-sessions').textContent = totalSessions;
+            document.getElementById('total-treasures').textContent = totalTreasures;
+            document.getElementById('total-bubbles').textContent = totalBubbles;
+            document.getElementById('total-deaths').textContent = totalDeaths;
+            const avgTime = completedSessions > 0 ? Math.round(totalTime / completedSessions) : 0;
+            document.getElementById('avg-time').textContent = `${avgTime} sec`;
+            const winRate = totalSessions > 0 ? Math.round((winCount / totalSessions) * 100) : 0;
+            document.getElementById('win-rate').textContent = `${winRate}%`;
+        }
+        async function loadSessions() {
+    const res = await authFetch('/api/sessions');
+    if (res.status === 401) {
+        localStorage.removeItem('token');
+        window.location.href = '/login.html';
+        return;
+    }
+
+            if (!res.ok) return;
+            allSessions = await res.json();
+            initializeDateFilters();
+            applyFilters();
+            if (document.getElementById('apply-filter')) document.getElementById('apply-filter').addEventListener('click', applyFilters);
+            if (document.getElementById('reset-filter')) document.getElementById('reset-filter').addEventListener('click', resetFilters);
+        }
+        window.deleteSession = async function(sessionId) {
+  if (!confirm('Are you sure you want to delete this session?')) return;
+
+  try {
+    // Only ONE DELETE request!
+    const res = await authFetch(`/api/sessions/${sessionId}`, { method: 'DELETE' });
+
+    // Handle expired/invalid token
+    if (res.status === 401) {
+      localStorage.removeItem('token');
+      window.location.href = '/login.html';
+      return;
+    }
+
+    // Treat 2xx as success; also treat 404 as "already deleted" success
+    if (res.ok || res.status === 204 || res.status === 404) {
+      // Update local list and refresh UI
+      allSessions = allSessions.filter(s => s._id !== sessionId);
+      applyFilters();
+      return;
+    }
+
+    // Surface any server-provided error text
+    let errText = '';
+    try { errText = await res.text(); } catch (_) {}
+    alert(`Failed to delete session${errText ? `: ${errText}` : ''}`);
+  } catch (error) {
+    console.error('Error deleting session:', error);
+    alert('Network error while deleting session.');
+  }
+};
+        async function clearAllSessions() {
+    if (!confirm('Are you sure you want to delete ALL sessions? This cannot be undone.')) return;
+    const res = await authFetch('/api/sessions', { method: 'DELETE' });
+    if (res.status === 401) {
+        localStorage.removeItem('token');
+        window.location.href = '/login.html';
+        return;
+    }
+    if (res.ok) {
+        // After deleting, reload from the server
+        await loadSessions(); // This will fetch fresh (now empty) session list, update UI and stats.
+        alert('All sessions have been deleted');
+    } else {
+        alert('Failed to delete all sessions');
+    }
+}
+        function displaySessions(sessions) {
+    filteredSessionsGlobal = sessions; // Save for paging
+    // Clamp the current page to valid range
+    let totalPages = Math.ceil(sessions.length / sessionsPageSize);
+    if (sessionsCurrentPage < 1) sessionsCurrentPage = 1;
+    if (sessionsCurrentPage > totalPages) sessionsCurrentPage = totalPages || 1;
+
+    const container = document.getElementById('sessions');
+    if (!container) return;
+
+    if (sessions.length === 0) {
+        container.innerHTML = '<p>No game sessions found for the selected filters.</p>';
+        return;
+    }
+
+    // Pagination controls
+    const sessionsHeader = document.createElement('div');
+    sessionsHeader.className = 'session-header';
+    sessionsHeader.innerHTML = `
+        <h2 style="margin:0;">Game Sessions</h2>
+        <div>
+            <button id="prev-sessions-btn" class="filter-button" ${sessionsCurrentPage <= 1 ? "disabled" : ""} style="width:auto;padding:6px 12px;margin-right:6px;">&#8592;</button>
+            <span style="font-weight:bold;font-size:1.1em;">Page ${sessionsCurrentPage} / ${totalPages || 1}</span>
+            <button id="next-sessions-btn" class="filter-button" ${sessionsCurrentPage >= totalPages ? "disabled" : ""} style="width:auto;padding:6px 12px;margin-left:6px;">&#8594;</button>
+            <button class="clear-all-btn" onclick="clearAllSessions()" style="margin-left:20px;">Clear All Sessions</button>
+        </div>
+    `;
+    container.innerHTML = '';
+    container.appendChild(sessionsHeader);
+
+    // helpers: DD/MM/YY and H:MM AM/PM (no seconds)
+    function pad(n) { return String(n).padStart(2, '0'); }
+    function formatDateShort(d) {
+      if (!(d instanceof Date)) return '';
+      const dd = pad(d.getDate());
+      const mm = pad(d.getMonth() + 1);
+      const yy = String(d.getFullYear()).slice(-2);
+      return `${dd}/${mm}/${yy}`;
+    }
+    function formatTimeHM(d) {
+      if (!(d instanceof Date)) return '';
+      let hrs = d.getHours();
+      const mins = pad(d.getMinutes());
+      const ampm = hrs >= 12 ? 'PM' : 'AM';
+      hrs = hrs % 12 || 12;
+      return `${hrs}:${mins} ${ampm}`;
+    }
+
+    // Sessions for current page
+    const startIdx = (sessionsCurrentPage - 1) * sessionsPageSize;
+    const endIdx = startIdx + sessionsPageSize;
+    const pageSessions = sessions.slice(startIdx, endIdx);
+
+    pageSessions.forEach(session => {
+        if (session.chestsCollected >= session.totalChests) { session.isWin = true; }
+
+        const startDateObj = session.startTime ? new Date(session.startTime) : null;
+        const endDateObj = session.endTime ? new Date(session.endTime) : null;
+
+        const startTimeHtml = startDateObj
+          ? `<div style="color:#007acc;font-weight:700;">${formatDateShort(startDateObj)} ${formatTimeHM(startDateObj)}</div>`
+          : 'Unknown';
+
+        const endTimeHtml = endDateObj
+          ? `<div style="color:#007acc;font-weight:700;">${formatDateShort(endDateObj)} ${formatTimeHM(endDateObj)}</div>`
+          : '<em>In Progress</em>';
+
+        const userEmail = session.user && session.user.email ? session.user.email : 'Unknown User';
+        const sessionDiv = document.createElement('div');
+        sessionDiv.className = 'session';
+        sessionDiv.innerHTML = `
+    <div style="text-align:center; font-weight:bold; color:#007acc; margin-bottom:6px;">
+        Played by: ${userEmail}
+        <span style="margin-left:12px; color:#444; font-size:0.98em;">
+            Difficulty: <strong>${session.difficulty ? session.difficulty.charAt(0).toUpperCase() + session.difficulty.slice(1) : 'Normal'}</strong>
+        </span>
+    </div>
+
+    <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:10px; align-items:center;">
+        ${session.endedEarly ? '<div class="win-badge" style="background:#ff9800;">ENDED EARLY</div>' : ''}
+        ${session.isWin ? '<div class="win-badge" style="margin-right: 10px;">WIN</div>' : ''}
+        <button class="delete-btn" onclick="deleteSession('${session._id}')">Delete</button>
+    </div>
+
+    <div class="stats">
+        <div class="stat">
+            <div class="stat-label">Played At</div>
+            <div class="stat-value">${startTimeHtml}</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">Ended At</div>
+            <div class="stat-value">${endTimeHtml}</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">Duration</div>
+            <div class="stat-value">${session.elapsedSeconds || 'In Progress'} sec</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">Chests</div>
+            <div class="stat-value">${session.chestsCollected}/${session.totalChests || 20}</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">Bubbles</div>
+            <div class="stat-value">${session.bubblesCollected}</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">Deaths</div>
+            <div class="stat-value">${session.mineDeaths}</div>
+        </div>
+    </div>
+
+    <!-- Device type shown centered at the bottom of the session card -->
+    <div style="text-align:center;margin-top:12px;color:#444;font-weight:700;">
+      Device:
+      <span style="color:#007acc;">
+        ${session.deviceType ? (session.deviceType.charAt(0).toUpperCase() + session.deviceType.slice(1)) : 'Unknown'}
+      </span>
+    </div>
+`;
+        container.appendChild(sessionDiv);
+    });
+
+    // Add event listeners to arrows
+    setTimeout(() => {
+        const prevBtn = document.getElementById('prev-sessions-btn');
+        const nextBtn = document.getElementById('next-sessions-btn');
+        if (prevBtn) prevBtn.onclick = () => { sessionsCurrentPage--; displaySessions(filteredSessionsGlobal); };
+        if (nextBtn) nextBtn.onclick = () => { sessionsCurrentPage++; displaySessions(filteredSessionsGlobal); };
+    }, 0);
+}
+
+        let sessionsCurrentPage = 1;
+let sessionsPageSize = 5;
+let filteredSessionsGlobal = [];
+
+        let selectedConfigDifficulty = 'easy';
+        async function loadConfigForDifficulty(difficulty) {
+            const res = await authFetch(`/api/game-config?difficulty=${difficulty}`);
+            if (res.status === 401) {
+            localStorage.removeItem('token');
+             window.location.href = '/login.html';
+              return;
+            }
+             if (!res.ok) return;
+             const cfg = await res.json();
+
+            document.getElementById('mazePattern').value = Array.isArray(cfg.mazePattern) ? cfg.mazePattern.join('\n') : '';
+            document.getElementById('totalTreasures').value = cfg.totalTreasures;
+            document.getElementById('totalSeaweeds').value = cfg.totalSeaweeds;
+            document.getElementById('totalBubbles').value = cfg.totalBubbles;
+            document.getElementById('totalMines').value = cfg.totalMines;
+            document.getElementById('gameTimeSeconds').value = cfg.gameTimeSeconds;
+            document.getElementById('totalFakeChests').value = cfg.totalFakeChests ?? 0;
+        }
+        async function loadLeaderboard() {
+    const res = await authFetch('/api/leaderboard');
+    if (res.status === 401) {
+        localStorage.removeItem('token');
+        window.location.href = '/login.html';
+        return;
+    }
+    if (!res.ok) return;
+    const leaderboard = await res.json();
+    renderLeaderboard(leaderboard);
+}
+
+function renderLeaderboard(leaderboard) {
+  const container = document.getElementById('leaderboard-container');
+  container.innerHTML = '';
+
+  // Helper SVGs
+  const arrowDownSVG = `<span style="font-size:1.5em;cursor:pointer;" title="Show all">▼</span>`;
+  const arrowUpSVG = `<span style="font-size:1.5em;cursor:pointer;" title="Hide">▲</span>`;
+
+  ['easy', 'normal', 'hard'].forEach(diff => {
+    const entries = leaderboard[diff];
+    const diffId = `leaderboard-${diff}`;
+    const toggleId = `toggle-${diff}`;
+    const listId = `list-${diff}`;
+    container.innerHTML += `
+      <div id="${diffId}" style="margin-bottom:18px;">
+        <h2 style="margin-bottom:6px;">
+          ${diff.charAt(0).toUpperCase() + diff.slice(1)} Difficulty Leaderboard
+          <span id="${toggleId}" style="float:right;">${arrowDownSVG}</span>
+        </h2>
+        <div id="${listId}"></div>
+      </div>
+    `;
+    // Render only top 1 by default
+    setTimeout(() => {
+      renderRankingList(diff, entries, false);
+      document.getElementById(toggleId).onclick = () => {
+  const listDiv = document.getElementById(listId);
+  const isCollapsed = listDiv.getAttribute('data-collapsed') === 'true';
+  if (isCollapsed) {
+    // Expand!
+    renderRankingList(diff, entries, true);
+    document.getElementById(toggleId).innerHTML = arrowUpSVG;
+  } else {
+    // Collapse!
+    renderRankingList(diff, entries, false);
+    document.getElementById(toggleId).innerHTML = arrowDownSVG;
+  }
+};
+    }, 0); // Defer to after DOM is ready
+  });
+
+  function getCrownSVG(rank) {
+    if (rank === 0) {
+      return `<svg width="28" height="28" viewBox="0 0 32 32" style="vertical-align:middle"><circle cx="16" cy="16" r="16" fill="#FFD700"/><text x="16" y="22" text-anchor="middle" font-size="18" font-family="Arial" dy=".3em">👑</text></svg>`;
+    } else if (rank === 1) {
+      return `<svg width="28" height="28" viewBox="0 0 32 32" style="vertical-align:middle"><circle cx="16" cy="16" r="16" fill="#C0C0C0"/><text x="16" y="22" text-anchor="middle" font-size="18" font-family="Arial" dy=".3em">👑</text></svg>`;
+    } else if (rank === 2) {
+      return `<svg width="28" height="28" viewBox="0 0 32 32" style="vertical-align:middle"><circle cx="16" cy="16" r="16" fill="#cd7f32"/><text x="16" y="22" text-anchor="middle" font-size="18" font-family="Arial" dy=".3em">👑</text></svg>`;
+    } else {
+      return `<span style="font-size:1.2em;border-radius:50%;background:#eee;padding:3px 10px;color:#222;vertical-align:middle;">${rank+1}</span>`;
+    }
+  }
+
+  function renderRankingList(diff, entries, showAll) {
+    const listDiv = document.getElementById(`list-${diff}`);
+    if (!entries || entries.length === 0) {
+      listDiv.innerHTML = `<div>No winners yet for ${diff}!</div>`;
+      return;
+    }
+    listDiv.setAttribute('data-collapsed', showAll ? 'false' : 'true');
+    let displayEntries = showAll ? entries : [entries[0]];
+    listDiv.innerHTML = displayEntries.map((entry, i) => {
+      let icon = getCrownSVG(i);
+      return `
+        <div class="leaderboard-entry" style="display:flex;align-items:center;margin-bottom:12px;color:#222;">
+          ${icon}
+          <div style="flex:1;padding-left:12px;color:#222;">
+            <b style="color:#222;">${entry.user.email}</b> <br>
+            Time: <span style="font-weight:bold;color:#222;">${entry.elapsedSeconds} sec</span>
+            &nbsp;|&nbsp; Seaweeds: <span style="font-weight:bold;color:#222;">${entry.seaweedsCollected}</span>
+            &nbsp;|&nbsp; Score: <span style="font-weight:bold;color:#222;">${entry.score}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+}
+    </script>
+</body>
+</html>

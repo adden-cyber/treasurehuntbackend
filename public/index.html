@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RoRo's Treasure Hunt</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        body, html {
+            margin: 0; padding: 0;
+            width: 100vw; height: 100vh;
+            overflow: hidden;
+        }
+        .game-container {
+            width: 100vw; height: 100vh;
+            min-height: 100vh;
+            position: relative;
+        }
+        .screen {
+            width: 100vw; height: 100vh;
+            max-width: unset; max-height: unset;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .screen.hidden {
+            display: none !important;
+        }
+        #game-canvas {
+            width: 100vw; height: 100vh;
+            position: absolute;
+            left: 0; top: 0;
+            background: #234;
+            border-radius: 0;
+            box-shadow: none;
+            aspect-ratio: unset;
+            z-index: 100;
+        }
+        .score, .treasures, .timer {
+            background: #e0e0e0;
+            color: #222;
+            border-radius: 8px;
+            padding: 4px 12px;
+            margin: 0 8px;
+        }
+        #toggle-hud-button {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            z-index: 1100;
+            font-size: 1.1em;
+            padding: 8px 16px;
+            opacity: 0.9;
+            pointer-events: auto;
+        }
+        .logo {
+            margin-bottom: 18px;
+            filter: drop-shadow(0 18px 36px rgba(0,0,0,0.45));
+            animation: floaty 4.5s ease-in-out infinite;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5em;
+        }
+        .manatee-icon {
+            margin-bottom: 6px;
+        }
+        .manatee-icon svg {
+            display: block;
+            width: 70px;
+            height: 54px;
+            margin: 0 auto;
+        }
+        @keyframes floaty {
+            0%, 100% { transform: translateY(0px);}    
+            50% { transform: translateY(-6px);}      
+        }
+        @media (max-width: 1200px) {
+            .screen { max-width: 100vw; }
+            .game-info { font-size: 1em; }
+        }
+        @media (max-width: 700px) {
+            .game-info { font-size: 0.9em; flex-direction: column;}
+            .manatee-icon svg { width: 45px; height: 32px; }
+            .logo svg { width: 70px; height: 70px; }
+            #toggle-hud-button { font-size: 1em; }
+        }
+        /* Joystick styles */
+        #joystick-container {
+            position: fixed;
+            left: 24px;
+            bottom: 24px;
+            z-index: 999;
+            width: 120px;
+            height: 120px;
+            pointer-events: none;
+            display: none;
+        }
+        #joystick-base {
+            position: absolute;
+            width: 120px; height: 120px;
+            border-radius: 50%;
+            background: rgba(80,80,80,0.25);
+            box-shadow: 0 0 6px #222;
+            pointer-events: auto;
+        }
+        #joystick-stick {
+            position: absolute;
+            left: 40px; top: 40px;
+            width: 40px; height: 40px;
+            border-radius: 50%;
+            background: rgba(180,180,200,0.8);
+            border: 2px solid #77e2ff;
+            box-shadow: 0 0 8px #77e2ff;
+            pointer-events: auto;
+            touch-action: none;
+        }
+        @media (max-width: 700px), (pointer: coarse) {
+            #joystick-container { display: block !important; }
+        }
+
+        /* Play History styles */
+        .ph-wrap { width: 100%; max-width: 420px; margin: 12px auto 0; }
+        .ph-title { text-align: center; font-weight: 800; color: #2a79c5; margin-bottom: 10px; }
+        .ph-card { background: #fff; border-radius: 14px; padding: 12px 14px; margin: 10px 0; box-shadow: 0 10px 26px rgba(0,0,0,0.08); }
+        .ph-date { font-weight: 800; color: #15599b; }
+        .ph-diff { color: #3b8a3b; font-weight: 700; margin-top: 2px; }
+        .ph-meta { color: #5b6a77; margin-top: 6px; }
+        .ph-badge { font-weight: 800; }
+        .status-win { color: #1b8f3b; }
+        .status-loss { color: #c7772b; }
+        .status-neutral { color: #607d8b; }
+        .ph-empty, .ph-error { color: #666; margin: 10px 0; text-align:center; }
+        .ph-loading { color: #666; margin: 10px 0; text-align:center; }
+        .ph-container { max-height: 60vh; overflow: auto; padding: 0 8px; }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <!-- Add before start-screen -->
+<div id="auth-screen" class="screen hidden">
+  <div class="auth-form-container">
+ <div id="login-form" class="auth-form">
+      <h2>Login</h2>
+      <input id="login-email" type="email" placeholder="Email"><br>
+      <input id="login-password" type="password" placeholder="Password"><br>
+      <button id="login-btn">Login</button>
+      <div class="auth-register-link">
+        <span id="show-register">Don't have an account? <b>Register here!</b></span>
+      </div>
+      <div id="auth-error" style="color:red;"></div>
+    </div>
+  <div id="register-form" class="auth-form hidden">
+      <h2>Register</h2>
+      <input id="register-email" type="email" placeholder="Email"><br>
+      <input id="register-password" type="password" placeholder="Password"><br>
+      <input id="register-confirm" type="password" placeholder="Confirm Password"><br>
+      <button id="register-btn">Register</button>
+      <div class="auth-login-link">
+        <span id="show-login">Already have an account? <b>Login here!</b></span>
+      </div>
+      <div id="register-error" style="color:red;"></div>
+    </div>
+    <div id="register-success-popup" class="auth-popup hidden">
+      <h3>You have registered!</h3>
+      <p>You can login in the log in page now.</p>
+      <p><em>Click anywhere to close.</em></p>
+    </div>
+  </div>
+</div>
+        <div id="start-screen" class="screen hidden">
+            <div class="logo" aria-hidden="true">
+                <!-- Manatee icon SVG (above the main logo SVG) -->
+                <div class="manatee-icon">
+                    <svg width="70" height="54" viewBox="0 0 70 54" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <ellipse cx="35" cy="32" rx="26" ry="16" fill="#9ecad6"/>
+                        <ellipse cx="35" cy="47" rx="13" ry="6" fill="#8bb8c6"/>
+                        <ellipse cx="25" cy="32" rx="3" ry="3" fill="#fff"/>
+                        <ellipse cx="45" cy="32" rx="3" ry="3" fill="#fff"/>
+                        <ellipse cx="25" cy="32" rx="1.2" ry="1.2" fill="#444"/>
+                        <ellipse cx="45" cy="32" rx="1.2" ry="1.2" fill="#444"/>
+                        <ellipse cx="35" cy="39" rx="4" ry="2" fill="#6c8199"/>
+                        <ellipse cx="12" cy="39" rx="6" ry="2.5" fill="#9ecad6" transform="rotate(-18 12 39)"/>
+                        <ellipse cx="58" cy="39" rx="6" ry="2.5" fill="#9ecad6" transform="rotate(18 58 39)"/>
+                    </svg>
+                </div>
+                <!-- Main logo SVG -->
+                <svg width="120" height="120" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="60" cy="60" r="58" fill="#00bcd4" stroke="#fff" stroke-width="4"/>
+                    <text x="50%" y="53%" text-anchor="middle" fill="#fff" font-size="36" font-family="Arial" dy=".35em">RoRo</text>
+                </svg>
+            </div>
+            <h1>RoRo's Treasure Hunt</h1>
+            <p>Help the manatee find treasures underwater!</p>
+            <button id="start-button">Start Game</button>
+            <button id="logout-btn" style="margin-top:14px;">Logout</button>
+
+            <!-- Play History block -->
+            <div class="ph-wrap" id="ph-wrap" style="margin-top:18px;">
+              <div class="ph-title">Your Play History</div>
+              <div class="ph-loading" id="ph-loading">Loading...</div>
+              <div class="ph-empty" id="ph-empty" style="display:none;">No play history yet.</div>
+              <div class="ph-error" id="ph-error" style="display:none;"></div>
+              <div class="ph-container" id="ph-container"></div>
+            </div>
+        </div>
+        
+        <div id="game-screen" class="screen hidden">
+            <div class="game-info">
+                <div class="score">Score: <span id="score-value">0</span></div>
+                <div class="treasures">Treasures: <span id="treasures-collected">0</span>/<span id="total-treasures">0</span></div>
+                <div class="timer">Time: <span id="timer-value">90</span>s</div>
+                <button id="end-game-button" style="margin-left:20px;">End Game</button>
+            </div>
+            <button id="toggle-hud-button">Hide HUD</button>
+            <canvas id="game-canvas" width="1800" height="1200"></canvas>
+        </div>
+        
+        <div id="completion-popup" class="screen hidden">
+            <h2 id="completion-title">Congratulations!</h2>
+            <p id="completion-message">You found all the treasures!</p>
+            <p>Final Score: <span id="final-score">0</span></p>
+            <p>Time Remaining: <span id="time-remaining">0</span>s</p>
+            <button id="completion-play-again-button">Play Again</button>
+            <button id="completion-return-to-start-button">Return to Start</button>
+        </div>
+        
+        <div id="quit-result-popup" class="screen hidden">
+            <h2 id="quit-title">Game Ended!</h2>
+            <p id="quit-message">Your progress before ending:</p>
+            <p>Final Score: <span id="quit-final-score">0</span></p>
+            <p>Treasures Collected: <span id="quit-treasures-collected">0</span></p>
+            <button id="quit-play-again-button">Play Again</button>
+            <button id="quit-return-to-start-button">Return to Start</button>
+        </div>
+    </div>
+    <!-- Joystick Overlay for Mobile -->
+    <div id="joystick-container">
+        <div id="joystick-base">
+            <div id="joystick-stick"></div>
+        </div>
+    </div>
+<script>
+  // Play History rendering logic
+  (function() {
+    const API_BASE = 'http://192.168.0.105:3001/api';
+    const container = document.getElementById('ph-container');
+    const loadingEl = document.getElementById('ph-loading');
+    const emptyEl = document.getElementById('ph-empty');
+    const errEl = document.getElementById('ph-error');
+
+    function tokenProvider() {
+      // Prefer window.userToken if set by login flow; fallback to localStorage
+      return (window.userToken) || (typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null);
+    }
+
+    function fmtDate(s) {
+      try { return new Date(s).toLocaleString(); } catch { return '-'; }
+    }
+    function fmtSecs(total) {
+      if (typeof total !== 'number' || isNaN(total)) return null;
+      const m = Math.floor(total / 60);
+      const s = total % 60;
+      return `${m}m ${s}s`;
+    }
+    function capFirst(s) { return !s ? '' : (s.charAt(0).toUpperCase() + s.slice(1)); }
+
+    function buildCard(s) {
+      const card = document.createElement('div');
+      card.className = 'ph-card';
+
+      const date = document.createElement('div');
+      date.className = 'ph-date';
+      date.textContent = fmtDate(s.startTime);
+
+      const diff = document.createElement('div');
+      diff.className = 'ph-diff';
+      diff.textContent = capFirst(s.difficulty || 'normal');
+
+      const meta = document.createElement('div');
+      meta.className = 'ph-meta';
+
+      const parts = [];
+      // chests
+      parts.push(`${(s.chestsCollected ?? 0)}/${(s.totalChests ?? '?')}`);
+      // time (for finished or even in-progress if available)
+      const t = fmtSecs(s.elapsedSeconds);
+      if (t) parts.push(t);
+      // device
+      parts.push((s.deviceType || 'unknown'));
+
+      // state badge logic
+      let badgeText = null; let badgeClass = 'status-neutral';
+      if (!s.endTime) {
+        badgeText = 'In progress';
+      } else if (s.endedEarly) {
+        badgeText = 'Ended early';
+      } else {
+        if (s.isWin) { badgeText = 'WIN'; badgeClass = 'status-win'; }
+        else { badgeText = 'LOSS'; badgeClass = 'status-loss'; }
+      }
+
+      meta.textContent = parts.join(' \u2022 ');
+
+      const badge = document.createElement('span');
+      badge.className = `ph-badge ${badgeClass}`;
+      badge.style.marginLeft = '6px';
+      badge.textContent = badgeText;
+
+      const wrap = document.createElement('div');
+      wrap.appendChild(meta);
+      wrap.appendChild(badge);
+
+      card.appendChild(date);
+      card.appendChild(diff);
+      card.appendChild(wrap);
+      return card;
+    }
+
+    async function loadHistory() {
+      const token = tokenProvider();
+      if (!container) return;
+      loadingEl.style.display = '';
+      emptyEl.style.display = 'none';
+      errEl.style.display = 'none';
+      errEl.textContent = '';
+      container.innerHTML = '';
+
+      if (!token) {
+        loadingEl.style.display = 'none';
+        emptyEl.style.display = 'none';
+        errEl.style.display = '';
+        errEl.textContent = 'Not authenticated.';
+        return;
+      }
+      try {
+        const res = await fetch(`${API_BASE}/my-sessions`, {
+          method: 'GET', headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) {
+          const e = await res.json().catch(() => ({}));
+          throw new Error(e.error || `Failed to load (${res.status})`);
+        }
+        let sessions = await res.json();
+        if (!Array.isArray(sessions)) sessions = [];
+        sessions.sort((a,b) => new Date(b.startTime) - new Date(a.startTime));
+
+        loadingEl.style.display = 'none';
+        if (sessions.length === 0) {
+          emptyEl.style.display = '';
+          return;
+        }
+        for (const s of sessions) {
+          container.appendChild(buildCard(s));
+        }
+      } catch (err) {
+        loadingEl.style.display = 'none';
+        errEl.style.display = '';
+        errEl.textContent = `Error: ${err.message}`;
+      }
+    }
+
+    // Expose reloader; also auto-load when start screen shows after login
+    window.reloadPlayHistory = loadHistory;
+    // Load after a tick to ensure login script sets token if already logged in
+    setTimeout(loadHistory, 300);
+  })();
+</script>
+<script src="game.js"></script>
+
+</div>
+</body>
+</html>

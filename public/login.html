@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Login | Treasure Hunt Admin</title>
+  <style>
+    body { font-family: Arial, sans-serif; background:#f0f8ff; margin:0; }
+    .box {
+      max-width: 360px; margin: 80px auto; background:#fff; padding: 24px;
+      border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,40,0.08);
+    }
+    h1 { text-align:center; color:#0366d6; margin: 0 0 16px; }
+    .field { margin-bottom: 14px; }
+    label { display:block; color:#234; font-weight: 500; margin-bottom: 6px; }
+    input { width: 100%; padding: 9px; border:1.2px solid #b3cbe1; border-radius: 6px; }
+    button {
+      width: 100%; background:#0366d6; color:#fff; border:none; border-radius:6px;
+      padding: 10px 14px; font-weight:600; cursor:pointer;
+    }
+    button:hover { background:#0055aa; }
+    .msg { margin-top: 10px; text-align: center; color: #c00; min-height: 20px; }
+    .hint { margin-top: 12px; font-size: 0.9em; color: #666; text-align:center; }
+
+    #forgot-password-form {
+  max-width: 500px;
+  margin: 30px auto;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 2px 12px rgba(0,0,40,0.10);
+  padding: 32px 32px 18px 32px;
+}
+#forgot-password-form input {
+  font-size: 1.15em;
+  padding: 14px;
+}
+#forgot-password-form button[type="submit"] {
+  width: 100%;
+  background: #0366d6;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 16px;
+  font-size: 1.2em;
+  font-weight: 600;
+  margin-top: 12px;
+}
+#forgot-password-form button#return-to-login {
+  width: 100%;
+  background: #ccc;
+  color: #222;
+  border: none;
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 1.1em;
+  margin-top: 16px;
+}
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1>Admin Login</h1>
+    <form id="login-form">
+      <div class="field">
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" autocomplete="username" required />
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required />
+      </div>
+      <button type="submit">Log In</button>
+      <div id="msg" class="msg"></div>
+      <div class="hint">You will be redirected to the dashboard after a successful login.</div>
+    </form>
+    <div style="text-align:right;margin-top:8px;">
+  <button type="button" id="show-forgot-password" style="background:none;color:#0366d6;border:none;cursor:pointer;font-size:1em;text-decoration:underline;padding:0;">Forgot password?</button>
+</div>
+  <button type="button" id="show-register-admin">Register as Admin</button>
+<form id="register-admin-form" style="display:none;">
+  <div class="field">
+    <label for="admin-email">Email</label>
+    <input id="admin-email" type="email" required>
+  </div>
+  <div class="field">
+    <label for="admin-password">Password</label>
+    <input id="admin-password" type="password" required>
+  </div>
+  <button type="submit">Create Admin Account</button>
+  <div id="register-admin-msg" class="msg"></div>
+</form>
+<!-- Forgot Password Form (hidden by default) -->
+<form id="forgot-password-form" style="display:none; max-width:500px; margin:30px auto; background:#fff; border-radius:10px; box-shadow:0 2px 12px rgba(0,0,40,0.10); padding:32px;">
+  <h2 style="text-align:center; color:#0366d6; font-size:2em; margin-bottom:24px;">Reset Admin Password</h2>
+  <div class="field">
+    <label for="forgot-email">Admin Email</label>
+    <input id="forgot-email" type="email" required style="font-size:1.15em; padding:14px;">
+  </div>
+  <div class="field">
+    <label for="forgot-new-password">New Password</label>
+    <input id="forgot-new-password" type="password" required style="font-size:1.15em; padding:14px;">
+  </div>
+  <div class="field">
+    <label for="forgot-confirm-password">Confirm New Password</label>
+    <input id="forgot-confirm-password" type="password" required style="font-size:1.15em; padding:14px;">
+  </div>
+  <button type="submit" style="width:100%;background:#0366d6; color:#fff; border:none; border-radius:6px; padding:16px; font-size:1.2em; font-weight:600; margin-top:12px;">Reset Password</button>
+  <button type="button" id="return-to-login" style="width:100%;background:#ccc;color:#222;border:none;border-radius:6px;padding:12px;font-size:1.1em; margin-top:16px;">Return to Login</button>
+  <div id="forgot-msg" class="msg"></div>
+</form>
+</div>
+  <script>
+    fetch('/api/register-allowed')
+  .then(res => res.json())
+  .then(data => {
+    if (!data.allowed) {
+      document.getElementById('show-register-admin').style.display = 'none';
+    }
+  });
+    // If already logged in, go straight to dashboard
+    (function () {
+      const token = localStorage.getItem('token');
+      if (token) window.location.href = '/dashboard.html';
+    })();
+
+    const form = document.getElementById('login-form');
+    const msg = document.getElementById('msg');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      msg.textContent = '';
+
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+
+      if (!email || !password) {
+        msg.textContent = 'Please enter email and password.';
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          msg.textContent = err.error || 'Login failed. Check your credentials.';
+          return;
+        }
+
+        const data = await res.json();
+if (!data.token) {
+  msg.textContent = 'Server did not return a token.';
+  return;
+}
+
+if (!data.isAdmin) {
+  msg.textContent = "You're not even an admin. get out of here";
+  return;
+}
+
+localStorage.setItem('token', data.token);
+window.location.href = '/dashboard.html';
+      } catch (error) {
+        console.error(error);
+        msg.textContent = 'Network error. Please try again.';
+      }
+    });
+
+    // Show registration form when button is clicked
+document.getElementById('show-register-admin').onclick = () => {
+  document.getElementById('register-admin-form').style.display = 'block';
+};
+
+const registerForm = document.getElementById('register-admin-form');
+const registerMsg = document.getElementById('register-admin-msg');
+
+registerForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  registerMsg.textContent = '';
+  const email = document.getElementById('admin-email').value.trim();
+  const password = document.getElementById('admin-password').value;
+  if (!email || !password) {
+    registerMsg.textContent = 'Please enter email and password.';
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      registerMsg.textContent = 'Admin registered! You can now log in.';
+      registerForm.reset();
+      registerForm.style.display = 'none'; // Optionally hide the form after success
+    } else {
+      registerMsg.textContent = data.error || 'Registration failed.';
+    }
+  } catch (err) {
+    registerMsg.textContent = 'Network error.';
+  }
+});
+// Show Forgot Password Form
+document.getElementById('show-forgot-password').onclick = () => {
+  document.getElementById('login-form').style.display = 'none';
+  document.getElementById('register-admin-form').style.display = 'none';
+  document.getElementById('forgot-password-form').style.display = 'block';
+  document.getElementById('forgot-msg').textContent = '';
+};
+
+// Return to Login
+document.getElementById('return-to-login').onclick = () => {
+  document.getElementById('forgot-password-form').style.display = 'none';
+  document.getElementById('login-form').style.display = 'block';
+  document.getElementById('forgot-msg').textContent = '';
+};
+
+// Handle Forgot Password Submit
+document.getElementById('forgot-password-form').onsubmit = async (e) => {
+  e.preventDefault();
+  const email = document.getElementById('forgot-email').value.trim();
+  const newPass = document.getElementById('forgot-new-password').value;
+  const confirm = document.getElementById('forgot-confirm-password').value;
+  const msgEl = document.getElementById('forgot-msg');
+  msgEl.textContent = '';
+  msgEl.style.color = "#c00";
+  if (!email || !newPass || !confirm) {
+    msgEl.textContent = "Please fill in all fields.";
+    return;
+  }
+  if (newPass !== confirm) {
+    msgEl.textContent = "Passwords do not match.";
+    return;
+  }
+  try {
+    const res = await fetch('/api/reset-password', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ email, newPassword: newPass })
+    });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      msgEl.style.color = "#007700";
+      msgEl.textContent = "Password reset successfully! You can now login.";
+    } else {
+      msgEl.textContent = data.error || "Failed to reset password.";
+    }
+  } catch (err) {
+    msgEl.textContent = "Network error.";
+  }
+};
+  </script>
+</body>
+</html>
