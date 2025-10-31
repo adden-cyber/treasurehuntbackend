@@ -63,6 +63,8 @@ const app = express();
 // Trust reverse proxies (Vercel, Render). This ensures req.ip and secure cookies behave correctly.
 app.set('trust proxy', true);
 
+app.use(cookieParser());
+
 // Build allowedOrigins from environment (FRONTEND_ORIGINS CSV or FRONTEND_URL or VERCEL_URL) with sensible defaults.
 const envOrigins = [];
 if (process.env.FRONTEND_ORIGINS) {
