@@ -275,33 +275,54 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
+// Example /api/register (replace/ensure your current one does similar checks)
 app.post('/api/register', async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) {
-    return res.status(400).json({ ok: false, error: "Email and password required" });
+  try {
+    const { email, password } = req.body || {};
+    if (!email || !password) {
+      return res.status(400).json({ ok: false, error: "Email and password required" });
+    }
+
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ ok: false, error: "Email already registered" });
+    }
+
+    // create as non-admin explicitly
+    const user = new User({
+      email,
+      password,
+      isAdmin: false,
+      credits: 1000,
+      lastCreditReset: getCreditResetDate()
+    });
+
+    await user.save();
+    res.json({ ok: true });
+
+  } catch (err) {
+    console.error('/api/register error:', err);
+    res.status(500).json({ ok: false, error: 'Failed to register' });
   }
-  // Check if user already exists
-  const existingUser = await User.findOne({ email });
-  if (existingUser) {
-    return res.status(400).json({ ok: false, error: "Email already registered" });
-  }
-  // Create new user as regular user
-  const user = new User({
-    email,
-    password,
-    isAdmin: false,
-    credits: 1000,
-    lastCreditReset: getCreditResetDate()
-  });
-  await user.save();
-  res.json({ ok: true });
 });
 
 // Create admin (bootstrap first admin without auth, otherwise require admin auth)
+// Replace your existing /api/register-admin route with the following:
+
 app.post('/api/register-admin',
+
   // first handler: allow creating the very first admin without authentication
   async (req, res, next) => {
     try {
+      // DEBUG: log incoming body (remove after testing)
+      console.log('/api/register-admin called (bootstrap check). Body:', req.body);
+
+      // Sanity: require email/password
+      const { email, password } = req.body || {};
+      if (!email || !password) {
+        return res.status(400).json({ ok: false, error: "Email and password required" });
+      }
+
       // Count existing admins
       const adminCount = await User.countDocuments({ isAdmin: true });
 
@@ -315,21 +336,16 @@ app.post('/api/register-admin',
           return res.status(429).json({ ok: false, error: 'Too many attempts. Try again later.' });
         }
 
-        const { email, password } = req.body || {};
-        if (!email || !password) {
-          return res.status(400).json({ ok: false, error: "Email and password required to create the first admin" });
-        }
-
         // Prevent creation if an account already exists with the email
         const existing = await User.findOne({ email });
         if (existing) {
           return res.status(400).json({ ok: false, error: "Email already registered" });
         }
 
-        // Create first admin. We rely on User model hooks to hash the password if implemented.
+        // Create first admin. Set isAdmin: true explicitly.
         const user = new User({
           email,
-          password,
+          password,    // plaintext here; pre('save') will hash it
           isAdmin: true,
           credits: 1000,
           lastCreditReset: getCreditResetDate()
@@ -340,7 +356,7 @@ app.post('/api/register-admin',
         // Clear bootstrap attempts map (no further unauthenticated bootstrap allowed)
         bootstrapAttempts.clear();
 
-        console.log('First admin created (bootstrap):', user.email);
+        console.log('First admin created (bootstrap):', user.email, 'isAdmin:', user.isAdmin);
         // Return success and indicate it's the first admin bootstrap
         return res.json({ ok: true, firstAdmin: true, id: user._id, email: user.email });
       }

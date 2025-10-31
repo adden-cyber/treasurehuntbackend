@@ -21,6 +21,11 @@ userSchema.methods.comparePassword = function(candidatePassword) {
 
 // Hash password before save
 userSchema.pre('save', async function(next) {
+  // Prevent clients from elevating privileges in normal register flows:
+  if (this.isNew && this.isAdmin !== true) {
+    // keep whatever isAdmin was intentionally set to (bootstrap path sets true)
+    // This check is just informational; you may also remove isAdmin from any client-controlled payload before creating user.
+  }
   if (!this.isModified('password')) return next();
   this.password = await bcrypt.hash(this.password, 10);
   next();
