@@ -28,6 +28,7 @@ require('dotenv').config();
 const GameSession = require('./models/GameSessions');
 const Feedback = require('./models/Feedback');
 const jwt = require('jsonwebtoken'); // JWT lib
+const cookieParser = require('cookie-parser');
 
 // Helper: get most recent GMT+8 midnight (as a UTC Date object)
 function getCreditResetDate() {
@@ -160,9 +161,15 @@ if (!process.env.JWT_SECRET) {
 
 // --- auth helpers ---
 function authMiddleware(req, res, next) {
-  // Get token from Authorization header (Bearer ...)
+  // Try Authorization header first
   const authHeader = req.headers.authorization || '';
-  const token = authHeader.split(' ')[1];
+  let token = authHeader.split(' ')[1];
+
+  // Fallback: token provided in cookie (useful for browser navigation)
+  if (!token && req.cookies && req.cookies.token) {
+    token = req.cookies.token;
+  }
+
   if (!token) return res.status(401).json({ error: "Unauthorized" });
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
@@ -238,18 +245,28 @@ app.post('/api/login', async (req, res) => {
     }
 
     // Generate JWT token
-    const payload = { email: user.email, isAdmin: user.isAdmin, id: user._id };
-    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '12h' });
-
-    // Respond with token and user info (including credits)
-    return res.json({
-      ok: true,
-      token,
-      email: user.email,
-      isAdmin: user.isAdmin,
-      id: user._id,
-      credits: user.credits
-    });
+        // Generate JWT token
+        const payload = { email: user.email, isAdmin: user.isAdmin, id: user._id };
+        const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '12h' });
+    
+        // Set token as a secure httpOnly cookie so browser can automatically send it
+        // For local/dev, secure: false (since local is usually http). In production use secure: true.
+        res.cookie('token', token, {
+          httpOnly: true,
+          secure: (process.env.NODE_ENV === 'production'), // true in production (HTTPS)
+          sameSite: 'lax',
+          maxAge: 12 * 60 * 60 * 1000 // 12 hours in ms
+        });
+    
+        // Respond with token and user info (and still return the token in JSON if API clients need it)
+        return res.json({
+          ok: true,
+          token,
+          email: user.email,
+          isAdmin: user.isAdmin,
+          id: user._id,
+          credits: user.credits
+        });
   } catch (err) {
     console.error('/api/login error:', err);
     return res.status(500).json({ ok: false, error: 'Internal server error' });
