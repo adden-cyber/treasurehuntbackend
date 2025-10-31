@@ -21,6 +21,15 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const allowed = [ 'https://manateetreasurehunt.vercel.app', 'https://treasurehuntbackend-qy2q.onrender.com' ];
+app.use(cors({
+  origin: function(origin, cb) {
+    if (!origin) return cb(null, true); // allow non-browser requests (curl, etc.)
+    if (allowed.indexOf(origin) !== -1) return cb(null, true);
+    cb(new Error('CORS not allowed'));
+  },
+  credentials: true
+}));
 const path = require('path');
 const fs = require('fs');
 const User = require('./models/User');
