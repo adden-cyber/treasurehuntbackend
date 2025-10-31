@@ -931,8 +931,9 @@ app.delete('/api/feedbacks/:id', authMiddleware, adminOnly, async (req, res) => 
 
 // Start server using process.env.PORT for Render compatibility
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`Backend listening on port ${PORT}`);
+const HOST = process.env.HOST || '0.0.0.0';
+app.listen(PORT, HOST, () => {
+  console.log(`Backend listening on http://${HOST}:${PORT}`);
   if (process.env.RENDER_EXTERNAL_HOSTNAME) {
     console.log(`Render external hostname: ${process.env.RENDER_EXTERNAL_HOSTNAME}`);
   }
