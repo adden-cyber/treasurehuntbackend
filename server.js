@@ -853,11 +853,13 @@ app.get('/', (req, res) => {
   res.json({ message: 'Welcome to the Treasure Hunt API' });
 });
 
+// server.js — mongoose.connect with optional dbName
 mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
-  useUnifiedTopology: true
+  useUnifiedTopology: true,
+  dbName: process.env.MONGODB_DBNAME || undefined
 })
-.then(() => console.log('Connected to MongoDB Atlas'))
+.then(() => console.log('Connected to MongoDB Atlas, db=', mongoose.connection.name))
 .catch(err => console.error('Could not connect to MongoDB Atlas', err));
 
 // add after successful mongoose.connect(...)
