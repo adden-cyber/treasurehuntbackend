@@ -255,9 +255,9 @@ app.post('/api/login', async (req, res) => {
         // For local/dev, secure: false (since local is usually http). In production use secure: true.
         res.cookie('token', token, {
           httpOnly: true,
-          secure: (process.env.NODE_ENV === 'production'), // true in production (HTTPS)
-          sameSite: 'lax',
-          maxAge: 12 * 60 * 60 * 1000 // 12 hours in ms
+          secure: (process.env.NODE_ENV === 'production'), // true in prod (required for SameSite=None)
+          sameSite: (process.env.NODE_ENV === 'production') ? 'none' : 'lax', // allow cross-site cookies in production
+          maxAge: 12 * 60 * 60 * 1000 // 12 hours
         });
     
         // Respond with token and user info (and still return the token in JSON if API clients need it)
