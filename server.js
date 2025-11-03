@@ -853,14 +853,40 @@ app.get('/', (req, res) => {
   res.json({ message: 'Welcome to the Treasure Hunt API' });
 });
 
-// server.js — mongoose.connect with optional dbName
-mongoose.connect(process.env.MONGODB_URI, {
+const mongooseOptions = {
   useNewUrlParser: true,
   useUnifiedTopology: true,
+  // If you set MONGODB_DBNAME in your environment (e.g. Vercel),
+  // Mongoose will prefer this DB name instead of defaulting to "test".
   dbName: process.env.MONGODB_DBNAME || undefined
-})
-.then(() => console.log('Connected to MongoDB Atlas, db=', mongoose.connection.name))
-.catch(err => console.error('Could not connect to MongoDB Atlas', err));
+};
+
+// Helper to mask the URI for safe logging (do NOT reveal credentials)
+function maskedUri(uri) {
+  try {
+    const u = new URL(uri);
+    const user = u.username ? (u.username[0] + '***') : '';
+    const host = u.hostname || '(unknown-host)';
+    const path = u.pathname && u.pathname !== '/' ? u.pathname : '';
+    return `${u.protocol}//${user}@${host}${path}`;
+  } catch (e) {
+    return '[invalid-uri]';
+  }
+}
+
+console.log('Connecting to MongoDB (masked):', maskedUri(process.env.MONGODB_URI));
+console.log('MONGODB_DBNAME override:', process.env.MONGODB_DBNAME || '(none)');
+
+mongoose.connect(process.env.MONGODB_URI, mongooseOptions)
+  .then(() => {
+    console.log('Connected to MongoDB Atlas');
+    // These values are safe to log (no credentials)
+    console.log('Active DB name:', mongoose.connection.name || '(unknown)');
+    console.log('Host:', mongoose.connection.host || '(unknown)');
+  })
+  .catch(err => {
+    console.error('Could not connect to MongoDB Atlas', err);
+  });
 
 // add after successful mongoose.connect(...)
 const conn = mongoose.connection;
