@@ -860,6 +860,30 @@ mongoose.connect(process.env.MONGODB_URI, {
 .then(() => console.log('Connected to MongoDB Atlas'))
 .catch(err => console.error('Could not connect to MongoDB Atlas', err));
 
+// add after successful mongoose.connect(...)
+const conn = mongoose.connection;
+console.log('Mongoose connected. host=%s, port=%s, name=%s, readyState=%s',
+  conn.host || '[no-host]',
+  conn.port || '[no-port]',
+  conn.name || '[no-dbname]',
+  conn.readyState);
+
+// optional lightweight endpoint to query connection info (safe to restrict/remove after debugging)
+app.get('/api/_debug/db-info', (req, res) => {
+  try {
+    const c = mongoose.connection;
+    return res.json({
+      ok: true,
+      host: c.host || null,
+      port: c.port || null,
+      dbName: c.name || null,
+      readyState: c.readyState
+    });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e) });
+  }
+});
+
 // Place this with your other app.get routes, before app.listen
 app.get('/api/register-allowed', async (req, res) => {
   const adminCount = await User.countDocuments({ isAdmin: true });
