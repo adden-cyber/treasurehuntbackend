@@ -45,7 +45,14 @@ const GameSessionSchema = new mongoose.Schema({
 
   // Add cost so /api/start can store how many credits were deducted
   // and /api/end can refund the correct amount for short (grace) sessions.
-  cost: { type: Number, default: 0 }
+  cost: { type: Number, default: 0 },
+
+  // NEW: idempotency / refund guard so refunds can't be applied twice
+  refunded: { type: Boolean, default: false },
+  refundedAt: { type: Date, default: null }
 }, {timestamps: true});
+
+// Optional index to speed up "claim refund" queries and checks
+GameSessionSchema.index({ refunded: 1 });
 
 module.exports = mongoose.model('GameSession', GameSessionSchema);

@@ -762,7 +762,6 @@ app.post('/api/mineDeath', async (req, res) => {
   res.json({ok: true});
 });
 
-// Replace the existing /api/end handler with this updated handler
 app.post('/api/end', async (req, res) => {
   try {
     const { sessionId, endedEarly = false, score, seaweedsCollected, grace = false } = req.body || {};
@@ -776,58 +775,132 @@ app.post('/api/end', async (req, res) => {
     const startTime = session.startTime || now;
     const elapsedSeconds = Math.floor((now.getTime() - new Date(startTime).getTime()) / 1000);
 
-    // If client indicated grace OR the elapsed is less than the grace window (5s),
-    // we treat this as "player ended too quickly" -> refund and DO NOT record session.
+    // If session already processed normally (has endTime) and not within grace,
+    // return success (idempotent).
+    if (session.endTime && !(grace || elapsedSeconds < 5)) {
+      return res.json({ ok: true, message: 'Session already recorded' });
+    }
+
+    // GRACE WINDOW handling (atomic & idempotent)
     const GRACE_SECONDS = 5;
     if (grace || elapsedSeconds < GRACE_SECONDS) {
-      // Refund the user's credits if this session was linked to a user and cost exists
-      if (session.user && typeof session.cost === 'number' && session.cost > 0) {
+      // If already refunded / processed, return idempotent result
+      if (session.refunded) {
+        return res.json({ ok: true, refunded: true, message: 'Session already refunded' });
+      }
+
+      // Attempt to run refund inside a transaction (if available)
+      let mongoSession = null;
+      try {
+        mongoSession = await mongoose.startSession();
+        mongoSession.startTransaction();
+
+        // Re-read the session within the transaction to guard against races
+        const sess = await GameSession.findOne({ _id: sessionId }).session(mongoSession);
+        if (!sess) {
+          await mongoSession.commitTransaction();
+          mongoSession.endSession();
+          return res.status(404).json({ ok: false, error: 'Session not found during transaction' });
+        }
+
+        // If it's already refunded by a concurrent request, do nothing
+        if (sess.refunded) {
+          await mongoSession.commitTransaction();
+          mongoSession.endSession();
+          return res.json({ ok: true, refunded: true, message: 'Session already refunded' });
+        }
+
+        // Perform refund if user & cost exist
+        if (sess.user && typeof sess.cost === 'number' && sess.cost > 0) {
+          // increment user credits
+          const updatedUser = await User.findByIdAndUpdate(
+            sess.user,
+            { $inc: { credits: sess.cost } },
+            { new: true, session: mongoSession }
+          );
+
+          // mark session refunded (so further calls are no-ops)
+          await GameSession.updateOne(
+            { _id: sessionId },
+            { $set: { refunded: true, refundedAt: new Date() } },
+            { session: mongoSession }
+          );
+
+          // optionally delete the session (or keep it with refunded flag)
+          await GameSession.deleteOne({ _id: sessionId }).session(mongoSession);
+
+          await mongoSession.commitTransaction();
+          mongoSession.endSession();
+
+          return res.json({
+            ok: true,
+            refunded: true,
+            message: 'Session ended within grace; credits refunded.',
+            credits: updatedUser ? updatedUser.credits : undefined
+          });
+        } else {
+          // No user/cost: mark refunded (so we don't try again) and remove session
+          await GameSession.updateOne(
+            { _id: sessionId },
+            { $set: { refunded: true, refundedAt: new Date() } },
+            { session: mongoSession }
+          );
+          await GameSession.deleteOne({ _id: sessionId }).session(mongoSession);
+
+          await mongoSession.commitTransaction();
+          mongoSession.endSession();
+
+          return res.json({ ok: true, refunded: false, message: 'Short session removed (no user/cost)' });
+        }
+      } catch (txErr) {
+        if (mongoSession) {
+          try { await mongoSession.abortTransaction(); mongoSession.endSession(); } catch (e) { /* ignore */ }
+        }
+        console.warn('/api/end refund transaction failed, falling back to atomic update', txErr);
+
+        // Fallback non-transactional path: try an atomic findOneAndUpdate to claim refund
+        const claimed = await GameSession.findOneAndUpdate(
+          { _id: sessionId, $or: [{ refunded: { $exists: false } }, { refunded: false }] },
+          { $set: { refunded: true, refundedAt: new Date() } },
+          { new: true }
+        );
+
+        if (!claimed) {
+          // someone else claimed/processed it
+          return res.json({ ok: true, refunded: true, message: 'Session already refunded (fallback)' });
+        }
+
+        // Proceed to increment user credits if applicable
         try {
-          const userDoc = await User.findById(session.user);
-          if (userDoc) {
-            userDoc.credits = (userDoc.credits || 0) + session.cost;
-            await userDoc.save();
-            console.log(`/api/end: refunded ${session.cost} credits to user ${userDoc.email} for session ${sessionId}`);
+          if (claimed.user && typeof claimed.cost === 'number' && claimed.cost > 0) {
+            const updatedUser = await User.findByIdAndUpdate(
+              claimed.user,
+              { $inc: { credits: claimed.cost } },
+              { new: true }
+            );
+            // remove session document (best-effort)
+            try { await GameSession.deleteOne({ _id: sessionId }); } catch (delErr) { /* ignore */ }
 
-            // Delete the short session and return updated credits
-            try {
-              await GameSession.deleteOne({ _id: sessionId });
-            } catch (delErr) {
-              console.warn('/api/end: failed to delete short session', delErr);
-            }
-
-            // Return credits so client can update UI immediately
-            const updatedUser = await User.findById(session.user).lean();
             return res.json({
               ok: true,
               refunded: true,
-              message: 'Session ended within grace window and was not recorded.',
-              credits: updatedUser ? updatedUser.credits : (userDoc.credits || 0)
+              message: 'Session ended within grace; credits refunded (fallback).',
+              credits: updatedUser ? updatedUser.credits : undefined
             });
+          } else {
+            // no user/cost
+            try { await GameSession.deleteOne({ _id: sessionId }); } catch (delErr) { /* ignore */ }
+            return res.json({ ok: true, refunded: false, message: 'Short session removed (no user/cost) (fallback).' });
           }
-        } catch (refundErr) {
-          console.error('/api/end refund error', refundErr);
-          // If refund failed, attempt to delete the session anyway (best effort)
-          try {
-            await GameSession.deleteOne({ _id: sessionId });
-          } catch (delErr) {
-            console.warn('/api/end: failed to delete short session after refund error', delErr);
-          }
-          // Fall through to return a generic success with refunded:false to avoid blocking client
-          return res.json({ ok: true, refunded: false, message: 'Session removed but refund failed.' });
+        } catch (incErr) {
+          // If the credit increment failed after we claimed the refund flag, log and enqueue for manual reconciliation/repair.
+          console.error('/api/end fallback: failed to increment credits after claiming refund flag', incErr);
+          return res.status(500).json({ ok: false, error: 'Refund failed during fallback. Manual reconciliation required.' });
         }
-      } else {
-        // No user or no cost; still remove the session and report back
-        try {
-          await GameSession.deleteOne({ _id: sessionId });
-        } catch (delErr) {
-          console.warn('/api/end: failed to delete short session (no user/cost)', delErr);
-        }
-        return res.json({ ok: true, refunded: false, message: 'Session ended quickly and was removed (no refund).' });
       }
     }
 
-    // Normal end-of-game handling (record stats)
+    // ---- not grace: normal end-of-game handling ----
     session.endTime = now;
     session.elapsedSeconds = elapsedSeconds;
     session.endedEarly = !!endedEarly;
@@ -848,6 +921,7 @@ app.post('/api/end', async (req, res) => {
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
+
 
 app.get('/', (req, res) => {
   res.json({ message: 'Welcome to the Treasure Hunt API' });
