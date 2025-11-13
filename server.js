@@ -25,12 +25,6 @@ const path = require('path');
 const fs = require('fs');
 const User = require('./models/User');
 require('dotenv').config();
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-});
-process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception thrown:', err);
-});
 const GameSession = require('./models/GameSessions');
 const Feedback = require('./models/Feedback');
 const jwt = require('jsonwebtoken'); // JWT lib
@@ -101,6 +95,9 @@ const defaultAllowed = [
   'https://manateetreasurehunt.vercel.app' // keep as helpful default, safe to include
 ];
 
+// Final allowed origins list (env first, then defaults)
+const allowedOrigins = Array.from(new Set([...(envOrigins || []), ...defaultAllowed]));
+
 // Helper to normalize origin for matching
 const normalizeOrigin = (origin) => {
   if (!origin) return origin;
@@ -118,15 +115,6 @@ const normalizeOrigin = (origin) => {
   }
 };
 
-
-// Final allowed origins list (env first, then defaults)
-const allowedOrigins = Array.from(new Set([...(envOrigins || []), ...defaultAllowed]));
-const normalizedAllowedOrigins = allowedOrigins.map(o => {
-  try { return normalizeOrigin(o); } catch (e) { return o; }
-});
-
-
-
 app.use((req, res, next) => {
   // Quick debug so you can see what the server actually receives
   if (req.headers.origin) console.log('CORS request from (raw):', req.headers.origin);
@@ -138,7 +126,7 @@ app.use(cors({
     // Allow server-to-server requests that have no origin header (e.g., Vercel server-side proxy, curl)
     if (!origin) return callback(null, true);
     const normalized = normalizeOrigin(origin);
-    const normalizedAllowed = normalizedAllowedOrigins;
+    const normalizedAllowed = allowedOrigins.map(o => normalizeOrigin(o));
     if (normalizedAllowed.includes(normalized)) return callback(null, true);
     console.log('Blocked origin:', origin, 'normalized as:', normalized);
     return callback(new Error('Not allowed by CORS'));
@@ -745,26 +733,18 @@ session.chestLog.push({
 
 app.post('/api/bubble', async (req, res) => {
   const { sessionId } = req.body;
-  if (!sessionId) return res.status(400).json({ error: 'No session ID provided' });
-
-  try {
-    const session = await GameSession.findById(sessionId);
-    if (!session) return res.status(404).json({ error: 'Session not found' });
-
-    const startMs = session.startTime ? new Date(session.startTime).getTime() : Date.now();
-    session.bubblesCollected = (session.bubblesCollected || 0) + 1;
-    session.bubbleLog = session.bubbleLog || [];
-    session.bubbleLog.push({
-      time: Math.floor((Date.now() - startMs) / 1000),
-      ...req.body
-    });
-
-    await session.save();
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('/api/bubble error:', err);
-    res.status(500).json({ ok: false, error: 'Internal server error' });
-  }
+  if (!sessionId) return res.status(400).json({error: 'No session ID provided'});
+  
+  const session = await GameSession.findById(sessionId);
+  if (!session) return res.status(404).json({error: 'Session not found'});
+  
+  session.bubblesCollected += 1;
+  session.bubbleLog.push({
+    time: Math.floor((Date.now() - session.startTime.getTime()) / 1000),
+    ...req.body
+  });
+  await session.save();
+  res.json({ok: true});
 });
 
 app.post('/api/mineDeath', async (req, res) => {
@@ -999,37 +979,66 @@ app.get('/api/_debug/db-info', (req, res) => {
 });
 
 // Place this with your other app.get routes, before app.listen
-// Replace /api/leaderboard with this defensive version
-app.get('/api/leaderboard', authMiddleware, async (req, res) => {
-  try {
-    const difficulties = ['easy', 'normal', 'hard'];
-    let leaderboard = {};
+app.get('/api/register-allowed', async (req, res) => {
+  const adminCount = await User.countDocuments({ isAdmin: true });
+  res.json({ allowed: adminCount === 0 });
+});
 
-    for (const diff of difficulties) {
-      const sessions = await GameSession.aggregate([
-        { $match: { isWin: true, endedEarly: { $ne: true }, difficulty: diff, user: { $ne: null } } },
-        { $sort: { elapsedSeconds: 1, seaweedsCollected: -1, score: -1 } },
-        {
-          $group: {
-            _id: "$user",
-            sessionId: { $first: "$_id" },
-            user: { $first: "$user" },
-            elapsedSeconds: { $first: "$elapsedSeconds" },
-            seaweedsCollected: { $first: "$seaweedsCollected" },
-            score: { $first: "$score" },
-          }
-        },
-        { $sort: { elapsedSeconds: 1, seaweedsCollected: -1, score: -1 } }
-      ]);
-      const populated = await GameSession.populate(sessions, { path: "user", select: "email" });
-      leaderboard[diff] = populated;
-    }
-
-    res.json(leaderboard);
-  } catch (err) {
-    console.error('/api/leaderboard error:', err);
-    res.status(500).json({ ok: false, error: 'Failed to load leaderboard' });
+app.post('/api/reset-password', async (req, res) => {
+  const { email, newPassword } = req.body;
+  if (!email || !newPassword) {
+    return res.status(400).json({ ok: false, error: "Email and new password required" });
   }
+  const user = await User.findOne({ email });
+  if (!user) {
+    return res.status(404).json({ ok: false, error: "No user with that email" });
+  }
+  user.password = newPassword; // Will be hashed by pre-save hook
+  await user.save();
+  res.json({ ok: true });
+});
+
+app.get('/api/my-sessions', authMiddleware, async (req, res) => {
+  try {
+    const sessions = await GameSession.find({ user: req.user.id })
+      .populate('user', 'email')
+      .sort({ startTime: -1 })
+      .lean();
+    res.json(sessions);
+  } catch (err) {
+    console.error('/api/my-sessions error', err);
+    res.status(500).json({ error: 'Failed to load user sessions' });
+  }
+});
+
+app.get('/api/leaderboard',authMiddleware, async (req, res) => {
+  const difficulties = ['easy', 'normal', 'hard'];
+  let leaderboard = {};
+
+  for (const diff of difficulties) {
+    // Find best winning session for each user in this difficulty
+    const sessions = await GameSession.aggregate([
+      { $match: { isWin: true, endedEarly: { $ne: true }, difficulty: diff, user: { $ne: null } } },
+      // Sort so that the "best" session is first for each user
+      { $sort: { elapsedSeconds: 1, seaweedsCollected: -1, score: -1 } },
+      {
+        $group: {
+          _id: "$user",
+          sessionId: { $first: "$_id" },
+          user: { $first: "$user" },
+          elapsedSeconds: { $first: "$elapsedSeconds" },
+          seaweedsCollected: { $first: "$seaweedsCollected" },
+          score: { $first: "$score" },
+        }
+      },
+      { $sort: { elapsedSeconds: 1, seaweedsCollected: -1, score: -1 } }
+    ]);
+    // Populate user info
+    const populated = await GameSession.populate(sessions, { path: "user", select: "email" });
+    leaderboard[diff] = populated;
+  }
+
+  res.json(leaderboard);
 });
 
 // User submits feedback
