@@ -25,6 +25,12 @@ const path = require('path');
 const fs = require('fs');
 const User = require('./models/User');
 require('dotenv').config();
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception thrown:', err);
+});
 const GameSession = require('./models/GameSessions');
 const Feedback = require('./models/Feedback');
 const jwt = require('jsonwebtoken'); // JWT lib
@@ -49,11 +55,16 @@ const DIFFICULTY_CREDIT_COST = { easy: 100, normal: 150, hard: 250 };
 
 // Helper: reset credits if needed
 async function maybeResetCredits(user) {
-  const resetDate = getCreditResetDate();
-  if (!user.lastCreditReset || user.lastCreditReset < resetDate) {
-    user.credits = 1000; // increased starting credits
-    user.lastCreditReset = resetDate;
-    await user.save();
+  try {
+    const resetDate = getCreditResetDate();
+    const lastReset = user && user.lastCreditReset ? new Date(user.lastCreditReset) : null;
+    if (!lastReset || lastReset.getTime() < resetDate.getTime()) {
+      user.credits = 1000; // increased starting credits
+      user.lastCreditReset = resetDate;
+      await user.save();
+    }
+  } catch (e) {
+    console.warn('[maybeResetCredits] failed for user', user && user.email, e);
   }
 }
 
@@ -90,9 +101,6 @@ const defaultAllowed = [
   'https://manateetreasurehunt.vercel.app' // keep as helpful default, safe to include
 ];
 
-// Final allowed origins list (env first, then defaults)
-const allowedOrigins = Array.from(new Set([...(envOrigins || []), ...defaultAllowed]));
-
 // Helper to normalize origin for matching
 const normalizeOrigin = (origin) => {
   if (!origin) return origin;
@@ -110,6 +118,15 @@ const normalizeOrigin = (origin) => {
   }
 };
 
+
+// Final allowed origins list (env first, then defaults)
+const allowedOrigins = Array.from(new Set([...(envOrigins || []), ...defaultAllowed]));
+const normalizedAllowedOrigins = allowedOrigins.map(o => {
+  try { return normalizeOrigin(o); } catch (e) { return o; }
+});
+
+
+
 app.use((req, res, next) => {
   // Quick debug so you can see what the server actually receives
   if (req.headers.origin) console.log('CORS request from (raw):', req.headers.origin);
@@ -121,7 +138,7 @@ app.use(cors({
     // Allow server-to-server requests that have no origin header (e.g., Vercel server-side proxy, curl)
     if (!origin) return callback(null, true);
     const normalized = normalizeOrigin(origin);
-    const normalizedAllowed = allowedOrigins.map(o => normalizeOrigin(o));
+    const normalizedAllowed = normalizedAllowedOrigins;
     if (normalizedAllowed.includes(normalized)) return callback(null, true);
     console.log('Blocked origin:', origin, 'normalized as:', normalized);
     return callback(new Error('Not allowed by CORS'));
@@ -140,20 +157,11 @@ app.use(cors({
 // Handle preflights (explicitly ensure same cors config used)
 app.options('*', cors());
 
-// Move the error handler AFTER your normal middleware registrations and before routes' final error handling,
-// but a simple handler to convert our "Not allowed by CORS" error to a 403 JSON response:
-app.use(function (err, req, res, next) {
-  if (!err) return next();
-  if (err.message === 'Not allowed by CORS') {
-    return res.status(403).json({ error: 'CORS error: Not allowed by CORS', origin: req.headers.origin });
-  }
-  // for other errors, pass through (or log)
-  console.error('Express error:', err);
-  next(err);
-});
 
-app.use(express.json());
+
+app.use(express.json({ limit: '128kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+
 
 // Use centralized JWT secret var
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret';
@@ -314,8 +322,8 @@ app.post('/api/register-admin',
   // first handler: allow creating the very first admin without authentication
   async (req, res, next) => {
     try {
-      // DEBUG: log incoming body (remove after testing)
-      console.log('/api/register-admin called (bootstrap check). Body:', req.body);
+
+      //NOTE: removed debug logging of request body to avoid leaking sensitive data
 
       // Sanity: require email/password
       const { email, password } = req.body || {};
@@ -726,28 +734,37 @@ app.post('/api/chest', async (req, res) => {
   if (type !== 'fake') {
     session.chestsCollected += 1;
   }
-  session.chestLog.push({
-    time: Math.floor((Date.now() - session.startTime.getTime()) / 1000),
-    ...req.body
-  });
+  const startMs = session.startTime ? session.startTime.getTime() : Date.now();
+session.chestLog.push({
+  time: Math.floor((Date.now() - startMs) / 1000),
+  ...req.body
+});
   await session.save();
   res.json({ok: true});
 });
 
 app.post('/api/bubble', async (req, res) => {
   const { sessionId } = req.body;
-  if (!sessionId) return res.status(400).json({error: 'No session ID provided'});
-  
-  const session = await GameSession.findById(sessionId);
-  if (!session) return res.status(404).json({error: 'Session not found'});
-  
-  session.bubblesCollected += 1;
-  session.bubbleLog.push({
-    time: Math.floor((Date.now() - session.startTime.getTime()) / 1000),
-    ...req.body
-  });
-  await session.save();
-  res.json({ok: true});
+  if (!sessionId) return res.status(400).json({ error: 'No session ID provided' });
+
+  try {
+    const session = await GameSession.findById(sessionId);
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+
+    const startMs = session.startTime ? new Date(session.startTime).getTime() : Date.now();
+    session.bubblesCollected = (session.bubblesCollected || 0) + 1;
+    session.bubbleLog = session.bubbleLog || [];
+    session.bubbleLog.push({
+      time: Math.floor((Date.now() - startMs) / 1000),
+      ...req.body
+    });
+
+    await session.save();
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('/api/bubble error:', err);
+    res.status(500).json({ ok: false, error: 'Internal server error' });
+  }
 });
 
 app.post('/api/mineDeath', async (req, res) => {
@@ -951,26 +968,21 @@ function maskedUri(uri) {
 console.log('Connecting to MongoDB (masked):', maskedUri(process.env.MONGODB_URI));
 console.log('MONGODB_DBNAME override:', process.env.MONGODB_DBNAME || '(none)');
 
+// Connect to MongoDB and log authoritative connection info on success
 mongoose.connect(process.env.MONGODB_URI, mongooseOptions)
   .then(() => {
+    const c = mongoose.connection;
     console.log('Connected to MongoDB Atlas');
-    // These values are safe to log (no credentials)
-    console.log('Active DB name:', mongoose.connection.name || '(unknown)');
-    console.log('Host:', mongoose.connection.host || '(unknown)');
+    console.log('Active DB name:', c.name || '(unknown)');
+    console.log('Host:', c.host || '(unknown)');
+    console.log('Port:', c.port || '(unknown)');
+    console.log('Mongoose readyState:', c.readyState);
   })
   .catch(err => {
     console.error('Could not connect to MongoDB Atlas', err);
   });
 
-// add after successful mongoose.connect(...)
-const conn = mongoose.connection;
-console.log('Mongoose connected. host=%s, port=%s, name=%s, readyState=%s',
-  conn.host || '[no-host]',
-  conn.port || '[no-port]',
-  conn.name || '[no-dbname]',
-  conn.readyState);
-
-// optional lightweight endpoint to query connection info (safe to restrict/remove after debugging)
+// Optional lightweight endpoint to query connection info (safe to restrict/remove after debugging)
 app.get('/api/_debug/db-info', (req, res) => {
   try {
     const c = mongoose.connection;
@@ -987,66 +999,37 @@ app.get('/api/_debug/db-info', (req, res) => {
 });
 
 // Place this with your other app.get routes, before app.listen
-app.get('/api/register-allowed', async (req, res) => {
-  const adminCount = await User.countDocuments({ isAdmin: true });
-  res.json({ allowed: adminCount === 0 });
-});
-
-app.post('/api/reset-password', async (req, res) => {
-  const { email, newPassword } = req.body;
-  if (!email || !newPassword) {
-    return res.status(400).json({ ok: false, error: "Email and new password required" });
-  }
-  const user = await User.findOne({ email });
-  if (!user) {
-    return res.status(404).json({ ok: false, error: "No user with that email" });
-  }
-  user.password = newPassword; // Will be hashed by pre-save hook
-  await user.save();
-  res.json({ ok: true });
-});
-
-app.get('/api/my-sessions', authMiddleware, async (req, res) => {
+// Replace /api/leaderboard with this defensive version
+app.get('/api/leaderboard', authMiddleware, async (req, res) => {
   try {
-    const sessions = await GameSession.find({ user: req.user.id })
-      .populate('user', 'email')
-      .sort({ startTime: -1 })
-      .lean();
-    res.json(sessions);
+    const difficulties = ['easy', 'normal', 'hard'];
+    let leaderboard = {};
+
+    for (const diff of difficulties) {
+      const sessions = await GameSession.aggregate([
+        { $match: { isWin: true, endedEarly: { $ne: true }, difficulty: diff, user: { $ne: null } } },
+        { $sort: { elapsedSeconds: 1, seaweedsCollected: -1, score: -1 } },
+        {
+          $group: {
+            _id: "$user",
+            sessionId: { $first: "$_id" },
+            user: { $first: "$user" },
+            elapsedSeconds: { $first: "$elapsedSeconds" },
+            seaweedsCollected: { $first: "$seaweedsCollected" },
+            score: { $first: "$score" },
+          }
+        },
+        { $sort: { elapsedSeconds: 1, seaweedsCollected: -1, score: -1 } }
+      ]);
+      const populated = await GameSession.populate(sessions, { path: "user", select: "email" });
+      leaderboard[diff] = populated;
+    }
+
+    res.json(leaderboard);
   } catch (err) {
-    console.error('/api/my-sessions error', err);
-    res.status(500).json({ error: 'Failed to load user sessions' });
+    console.error('/api/leaderboard error:', err);
+    res.status(500).json({ ok: false, error: 'Failed to load leaderboard' });
   }
-});
-
-app.get('/api/leaderboard',authMiddleware, async (req, res) => {
-  const difficulties = ['easy', 'normal', 'hard'];
-  let leaderboard = {};
-
-  for (const diff of difficulties) {
-    // Find best winning session for each user in this difficulty
-    const sessions = await GameSession.aggregate([
-      { $match: { isWin: true, endedEarly: { $ne: true }, difficulty: diff, user: { $ne: null } } },
-      // Sort so that the "best" session is first for each user
-      { $sort: { elapsedSeconds: 1, seaweedsCollected: -1, score: -1 } },
-      {
-        $group: {
-          _id: "$user",
-          sessionId: { $first: "$_id" },
-          user: { $first: "$user" },
-          elapsedSeconds: { $first: "$elapsedSeconds" },
-          seaweedsCollected: { $first: "$seaweedsCollected" },
-          score: { $first: "$score" },
-        }
-      },
-      { $sort: { elapsedSeconds: 1, seaweedsCollected: -1, score: -1 } }
-    ]);
-    // Populate user info
-    const populated = await GameSession.populate(sessions, { path: "user", select: "email" });
-    leaderboard[diff] = populated;
-  }
-
-  res.json(leaderboard);
 });
 
 // User submits feedback
@@ -1088,6 +1071,36 @@ app.delete('/api/feedbacks/:id', authMiddleware, adminOnly, async (req, res) => 
   } catch (err) {
     res.status(500).json({ ok: false, error: 'Failed to delete feedback.' });
   }
+});
+
+// Move the error handler AFTER your normal middleware registrations and before routes' final error handling,
+app.use(function (err, req, res, next) {
+  // If headers already sent, delegate to default handler
+  if (res.headersSent) return next(err);
+
+  // Known CORS error created by our origin check
+  if (err && err.message === 'Not allowed by CORS') {
+    console.warn('CORS blocked origin:', req.headers.origin);
+    return res.status(403).json({ error: 'CORS error: Not allowed by CORS', origin: req.headers.origin });
+  }
+
+  // Known validation or app errors may expose a .status property
+  const status = (err && err.status && Number(err.status)) || 500;
+  const payload = {
+    ok: false,
+    error: (err && err.message) || 'Internal server error'
+  };
+
+  // Add stack trace only in development to help debugging
+  if (process.env.NODE_ENV !== 'production') {
+    payload.stack = err && err.stack;
+    console.error('Unhandled error:', err);
+  } else {
+    // In production, log minimal error server-side
+    console.error('Unhandled server error:', (err && err.message) || err);
+  }
+
+  res.status(status).json(payload);
 });
 
 // Start server using process.env.PORT for Render compatibility
